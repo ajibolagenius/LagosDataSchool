@@ -1,237 +1,424 @@
 # Week 16: PostgreSQL & Drizzle ORM
 
-Flowboard's data currently vanishes every time the server restarts. This week it gets a real, permanent home: a genuine PostgreSQL database, modeled properly with relations, and accessed through **Drizzle** — a TypeScript-native ORM that keeps your queries fully typed end to end.
+In Week 15, Flowboard used in-memory arrays that vanished upon server restart. This week, you establish a persistent, relational data foundation using **PostgreSQL** — the industry standard open-source relational database — and **Drizzle ORM**, a modern TypeScript-native Object-Relational Mapper. You will master **Relational Schema Design**, **Foreign Key Cascades**, **ACID Transactions**, **Database Connection Pooling**, and **Type-Safe SQL Query Generation**.
 
 ---
 
-## Module 1: Relational Modeling & a Real Database
+## Module 1: Relational Database Architecture & Modeling
 
-### 1. Designing Flowboard's Schema
+### 1. The Core Terminology of Relational Databases
 
-* **Lecture & Concepts:**
-    * A **relational database** stores data in tables with defined relationships between them. Flowboard needs four: `users` (who owns things), `boards` (owned by a user), `lists` (columns within a board, like "To Do"/"In Progress"/"Done"), and `tasks` (cards within a list).
-    * A **foreign key** is a column that references another table's primary key, enforcing that the relationship is always valid — a task can't belong to a list that doesn't exist.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **RDBMS** | Relational Database Management System (e.g., PostgreSQL, MySQL) that organizes data into tables (relations) of rows and columns. | Guarantees structured schemas, data integrity, and complex multi-table relational joins. |
+| **Primary Key (PK)** | A column (or set of columns) whose values uniquely identify every row in a table (`serial` integer or `uuid`). | Indexed automatically with a **B-Tree** index for $O(\log n)$ lookup speed. |
+| **Foreign Key (FK)** | A column in one table that references the Primary Key of another table. | Enforces **Referential Integrity** — you cannot insert a Task referencing a non-existent List ID. |
+| **Referential Action (`CASCADE`)** | Rules defining what happens to child records when a referenced parent record is deleted or updated. | `ON DELETE CASCADE` automatically deletes all child boards, lists, and tasks when a user account is deleted. |
+| **ACID Guarantees** | The four core guarantees of transactional databases: **Atomicity** (all-or-nothing), **Consistency** (valid schema state), **Isolation** (concurrent transactions do not interfere), and **Durability** (committed data survives crashes). | Protects data integrity during multi-step database mutations (e.g., reordering lists or bank transfers). |
+| **Connection Pool** | A cache of persistent, reusable TCP database connections managed by the application. | Prevents latency and memory exhaustion caused by opening/closing raw database sockets per request. |
+
+---
+
+### 2. Flowboard Entity-Relationship (ER) Architecture
 
 ```mermaid
 erDiagram
-    USERS ||--o{ BOARDS : owns
-    BOARDS ||--o{ LISTS : contains
-    LISTS ||--o{ TASKS : contains
+    USERS ||--o{ BOARDS : "1. owns (1:N)"
+    BOARDS ||--o{ LISTS : "2. contains (1:N)"
+    LISTS ||--o{ TASKS : "3. contains (1:N)"
+
     USERS {
-        int id PK
-        string email
-        string password_hash
+        uuid id PK
+        varchar email UK "Unique, Not Null"
+        text password_hash "Bcrypt Hash"
+        timestamp created_at "Default NOW()"
     }
+
     BOARDS {
-        int id PK
-        int user_id FK
-        string title
+        uuid id PK
+        uuid user_id FK "References users(id) ON DELETE CASCADE"
+        varchar title "Not Null"
+        text description
+        timestamp created_at "Default NOW()"
     }
+
     LISTS {
-        int id PK
-        int board_id FK
-        string title
-        int position
+        uuid id PK
+        uuid board_id FK "References boards(id) ON DELETE CASCADE"
+        varchar title "Not Null"
+        integer position "Sort order (0, 1, 2...)"
+        timestamp created_at "Default NOW()"
     }
+
     TASKS {
-        int id PK
-        int list_id FK
-        string title
-        boolean completed
+        uuid id PK
+        uuid list_id FK "References lists(id) ON DELETE CASCADE"
+        varchar title "Not Null"
+        text description
+        boolean completed "Default false"
+        integer position "Sort order (0, 1, 2...)"
+        timestamp created_at "Default NOW()"
     }
 ```
 
-* **Class Exercise: Sketch It Yourself**
-    1. Before writing any code, redraw the diagram above by hand (or in any diagramming tool), adding one more column you think each table genuinely needs (e.g., `tasks.due_date`, `boards.created_at`).
-    2. Explain out loud (or in a comment) why `lists.position` exists — think about what happens when a user drags a list to reorder it.
+---
+
+### 3. Under the Hood: Preventing SQL Injection via Parameterized Queries
+
+> [!CAUTION]
+> **The SQL Injection Vector:** If user input is concatenated directly into SQL strings (`"SELECT * FROM users WHERE email = '" + req.body.email + "'"`), an attacker can pass `' OR '1'='1` and bypass authentication or drop tables.
+
+Drizzle ORM compiles all queries into **Parameterized SQL Statements**:
+- User values are replaced with placeholders (`$1`, `$2`).
+- The database engine parses and compiles the query structure *before* binding user parameters as literal data, making SQL injection impossible.
+
+```sql
+-- Generated parameterized SQL under the hood:
+SELECT id, title, user_id FROM boards WHERE user_id = $1 AND title ILIKE $2;
+-- Parameters passed separately: [ 'u-101', '%roadmap%' ]
+```
 
 ---
 
-### 2. Choosing and Creating a Real Postgres Database
+## Module 2: Setting Up Drizzle ORM with PostgreSQL
 
-* **Lecture & Concepts:**
-    * Options for running Postgres range from self-hosting it yourself, to a managed service (AWS RDS), to **serverless** offerings like **Neon** — a free tier, instant provisioning, and no server to maintain, which suits a small project perfectly.
+### 1. Installation & Environment Configuration
 
-* **Class Exercise: Create Your Neon Project**
-    1. Create a free account at neon.tech and a new project.
-    2. Copy the connection string it gives you into a `.env` file in `flowboard-api` — **never commit this file**. Add `.env` to `.gitignore` immediately, before anything else.
+```bash
+# 1. Install Drizzle ORM and PostgreSQL client driver
+npm install drizzle-orm pg dotenv
 
----
+# 2. Install developer CLI migration tool and type definitions
+npm install -D drizzle-kit @types/pg
+```
 
-## Module 2: Setting Up Drizzle
+#### `.env` File:
+```env
+PORT=4000
+NODE_ENV=development
+DATABASE_URL=postgresql://neondb_owner:password@ep-flowboard-123.eu-central-1.aws.neon.tech/flowboard?sslmode=require
+```
 
-### 1. Installing and Configuring
+#### `drizzle.config.ts` (CLI Tooling Config):
+```ts
+import { defineConfig } from 'drizzle-kit';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
-* **Lecture & Concepts:**
-    * **Drizzle** is a "headless" ORM: it generates fully-typed query builders directly from a schema you define in TypeScript, without hiding SQL behind excessive abstraction — you still largely think in relational terms, just with real autocomplete and compile-time safety.
-
-* **In-Depth Example (Terminal & Config):**
-    ```bash
-    npm install drizzle-orm pg
-    npm install -D drizzle-kit @types/pg
-    ```
-    ```ts
-    // drizzle.config.ts
-    import { defineConfig } from 'drizzle-kit';
-
-    export default defineConfig({
-      schema: './src/db/schema.ts',
-      out: './drizzle',
-      dialect: 'postgresql',
-      dbCredentials: { url: process.env.DATABASE_URL! },
-    });
-    ```
-
-### 2. Declaring the Schema
-
-* **Lecture & Concepts:**
-    * Drizzle's schema is plain TypeScript — each table is a function call describing its columns, types, and constraints, which also becomes the source of your fully-typed `Board`, `List`, and `Task` types.
-
-* **In-Depth Example:**
-    ```ts
-    // src/db/schema.ts
-    import { pgTable, serial, text, integer, boolean, timestamp } from 'drizzle-orm/pg-core';
-
-    export const users = pgTable('users', {
-      id: serial('id').primaryKey(),
-      email: text('email').notNull().unique(),
-      passwordHash: text('password_hash').notNull(),
-      createdAt: timestamp('created_at').defaultNow().notNull(),
-    });
-
-    export const boards = pgTable('boards', {
-      id: serial('id').primaryKey(),
-      userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-      title: text('title').notNull(),
-    });
-
-    export const lists = pgTable('lists', {
-      id: serial('id').primaryKey(),
-      boardId: integer('board_id').notNull().references(() => boards.id, { onDelete: 'cascade' }),
-      title: text('title').notNull(),
-      position: integer('position').notNull().default(0),
-    });
-
-    export const tasks = pgTable('tasks', {
-      id: serial('id').primaryKey(),
-      listId: integer('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
-      title: text('title').notNull(),
-      completed: boolean('completed').notNull().default(false),
-    });
-    ```
-    * `.references(() => users.id, { onDelete: 'cascade' })` is the real foreign key from the ER diagram — `onDelete: 'cascade'` means deleting a user automatically deletes their boards too, rather than leaving orphaned rows behind.
-
-* **Class Exercise: Define the Real Schema**
-    1. Create `src/db/schema.ts` exactly as shown, matching your Module 1 sketch.
-    2. Create the Drizzle connection: `src/db/index.ts` exporting a configured `drizzle(pool)` instance using `pg.Pool` and your `.env`'s `DATABASE_URL`.
-
-### 3. Migrations
-
-* **Lecture & Concepts:**
-    * A **migration** is a version-controlled record of a schema change — Drizzle Kit compares your `schema.ts` against the real database and generates the SQL needed to bring the database in line.
-
-* **In-Depth Example (Terminal):**
-    ```bash
-    npx drizzle-kit generate
-    npx drizzle-kit migrate
-    ```
-
-* **Class Exercise: Run Your First Migration**
-    1. Run both commands above.
-    2. In Neon's dashboard, confirm all four tables now exist with the correct columns and foreign keys.
+export default defineConfig({
+  schema: './src/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+  verbose: true,
+  strict: true,
+});
+```
 
 ---
 
-## Module 3: Typed CRUD, Relations & Transactions
+### 2. Relational Schema Declaration (`src/db/schema.ts`)
 
-### 1. Basic CRUD with Drizzle
+```ts
+import { pgTable, text, timestamp, boolean, integer, uuid, varchar } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
-* **In-Depth Example (Real, Typed Queries):**
-    ```ts
-    // src/models/boardModel.ts
-    import { db } from '../db';
-    import { boards } from '../db/schema';
-    import { eq } from 'drizzle-orm';
+// 1. Users Table
+export const users = pgTable('users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
-    export const BoardModel = {
-      getAllForUser: (userId: number) => db.select().from(boards).where(eq(boards.userId, userId)),
-      findById: async (id: number) => (await db.select().from(boards).where(eq(boards.id, id)))[0],
-      create: async (userId: number, title: string) =>
-        (await db.insert(boards).values({ userId, title }).returning())[0],
-      update: async (id: number, title: string) =>
-        (await db.update(boards).set({ title }).where(eq(boards.id, id)).returning())[0],
-      remove: (id: number) => db.delete(boards).where(eq(boards.id, id)),
-    };
-    ```
-    * Every method here is fully typed — `title` must be a `string`, the return value is a real `Board`, and a typo in a column name fails at compile time, not silently at runtime like raw SQL strings would.
+// 2. Boards Table
+export const boards = pgTable('boards', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 150 }).notNull(),
+  description: text('description').default('').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
-* **Class Exercise: Rewrite the Model Layer**
-    1. Replace your Week 15 in-memory `BoardModel` with the real Drizzle version above.
-    2. Confirm through Postman that boards created now persist across server restarts.
+// 3. Lists Table
+export const lists = pgTable('lists', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  boardId: uuid('board_id')
+    .notNull()
+    .references(() => boards.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 100 }).notNull(),
+  position: integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
-### 2. Relations & Joins
+// 4. Tasks Table
+export const tasks = pgTable('tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listId: uuid('list_id')
+    .notNull()
+    .references(() => lists.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').default('').notNull(),
+  completed: boolean('completed').default(false).notNull(),
+  position: integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
-* **Lecture & Concepts:**
-    * Fetching a board *with* its lists in one query, rather than one query per list, avoids the "N+1 query problem" — a genuine, common performance mistake. Drizzle's relational query API handles this cleanly once relations are declared.
+// ============================================================================
+// Drizzle Relations (Used for type-safe nested queries)
+// ============================================================================
+export const usersRelations = relations(users, ({ many }) => ({
+  boards: many(boards),
+}));
 
-* **In-Depth Example:**
-    ```ts
-    // src/db/schema.ts (add below the table definitions)
-    import { relations } from 'drizzle-orm';
+export const boardsRelations = relations(boards, ({ one, many }) => ({
+  user: one(users, { fields: [boards.userId], references: [users.id] }),
+  lists: many(lists),
+}));
 
-    export const boardsRelations = relations(boards, ({ many }) => ({
-      lists: many(lists),
-    }));
-    export const listsRelations = relations(lists, ({ one, many }) => ({
-      board: one(boards, { fields: [lists.boardId], references: [boards.id] }),
-      tasks: many(tasks),
-    }));
-    ```
-    ```ts
-    const boardWithLists = await db.query.boards.findFirst({
-      where: eq(boards.id, boardId),
-      with: { lists: { with: { tasks: true } } },
+export const listsRelations = relations(lists, ({ one, many }) => ({
+  board: one(boards, { fields: [lists.boardId], references: [boards.id] }),
+  tasks: many(tasks),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  list: one(lists, { fields: [tasks.listId], references: [lists.id] }),
+}));
+
+// Infer TypeScript Models directly from Database Schema
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Board = typeof boards.$inferSelect;
+export type NewBoard = typeof boards.$inferInsert;
+
+export type List = typeof lists.$inferSelect;
+export type NewList = typeof lists.$inferInsert;
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+```
+
+---
+
+### 3. Database Connection Pooling (`src/db/index.ts`)
+
+```ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import * as schema from './schema';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+// Create connection pool (reusable TCP socket pool)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,                   // Maximum 20 simultaneous connections
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  connectionTimeoutMillis: 2000,
+});
+
+// Verify connection on startup
+pool.on('connect', () => {
+  console.log('✅ Connected to PostgreSQL Database Pool');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Unexpected database error on idle client:', err);
+  process.exit(-1);
+});
+
+// Export type-safe db client with complete relational schema loaded
+export const db = drizzle(pool, { schema });
+```
+
+---
+
+### 4. Running Migrations with Drizzle Kit
+
+```bash
+# 1. Generate SQL migration files from TypeScript schema
+npx drizzle-kit generate
+
+# 2. Apply migration files to the live PostgreSQL database
+npx drizzle-kit migrate
+
+# 3. (Optional) Open Drizzle Studio to inspect and edit live database rows
+npx drizzle-kit studio
+```
+
+---
+
+## Module 3: Type-Safe CRUD, Relational Queries & Transactions
+
+### 1. Refactoring `BoardModel` with Drizzle ORM
+
+```ts
+// src/models/board.model.ts
+import { db } from '../db';
+import { boards, NewBoard, Board } from '../db/schema';
+import { eq, desc } from 'drizzle-orm';
+
+export const BoardModel = {
+  findAllByUser: async (userId: string): Promise<Board[]> => {
+    return db
+      .select()
+      .from(boards)
+      .where(eq(boards.userId, userId))
+      .orderBy(desc(boards.createdAt));
+  },
+
+  findById: async (id: string): Promise<Board | null> => {
+    const result = await db
+      .select()
+      .from(boards)
+      .where(eq(boards.id, id))
+      .limit(1);
+
+    return result[0] || null;
+  },
+
+  create: async (data: NewBoard): Promise<Board> => {
+    const result = await db
+      .insert(boards)
+      .values(data)
+      .returning(); // PostgreSQL returning clause gives back the inserted row!
+
+    return result[0];
+  },
+
+  update: async (id: string, data: Partial<NewBoard>): Promise<Board | null> => {
+    const result = await db
+      .update(boards)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(boards.id, id))
+      .returning();
+
+    return result[0] || null;
+  },
+
+  delete: async (id: string): Promise<boolean> => {
+    const result = await db
+      .delete(boards)
+      .where(eq(boards.id, id))
+      .returning({ deletedId: boards.id });
+
+    return result.length > 0;
+  },
+};
+```
+
+---
+
+### 2. Solving the N+1 Query Problem with Relational Queries
+
+> [!IMPORTANT]
+> **The N+1 Query Problem:** If a client requests a board with its lists and tasks, firing 1 query for the board, $N$ queries for lists, and $M$ queries for tasks destroys database performance.
+
+Drizzle's **Relational Query API** loads the entire nested tree in an optimized, single database roundtrip:
+
+```ts
+// src/services/board.service.ts
+import { db } from '../db';
+
+export const BoardService = {
+  getBoardWithFullDetails: async (boardId: string) => {
+    // Eagerly fetch Board -> Lists -> Tasks in one query
+    const boardWithHierarchy = await db.query.boards.findFirst({
+      where: (boards, { eq }) => eq(boards.id, boardId),
+      with: {
+        lists: {
+          orderBy: (lists, { asc }) => [asc(lists.position)],
+          with: {
+            tasks: {
+              orderBy: (tasks, { asc }) => [asc(tasks.position)],
+            },
+          },
+        },
+      },
     });
-    ```
 
-* **Class Exercise: Build `lists` and `tasks` CRUD**
-    1. Declare the relations above.
-    2. Build full Model → Service → Controller CRUD for `lists` and `tasks`, following Week 15's layering pattern exactly.
-    3. Add a `GET /boards/:id/full` endpoint returning a board with its lists and each list's tasks, using the relational query above.
-
-### 3. Transactions
-
-* **Lecture & Concepts:**
-    * A **transaction** groups multiple writes so they either *all* succeed or *all* fail together — critical whenever one logical action touches more than one table (e.g., deleting a board should also delete its lists and tasks atomically, though the `onDelete: 'cascade'` from Module 2 already handles that specific case at the database level).
-
-* **In-Depth Example (Creating a Board With a Default List, Atomically):**
-    ```ts
-    async function createBoardWithDefaultList(userId: number, title: string) {
-      return db.transaction(async (tx) => {
-        const [board] = await tx.insert(boards).values({ userId, title }).returning();
-        await tx.insert(lists).values({ boardId: board.id, title: 'To Do', position: 0 });
-        return board;
-      });
+    if (!boardWithHierarchy) {
+      const error: any = new Error('Board not found');
+      error.statusCode = 404;
+      throw error;
     }
-    ```
 
-* **Class Exercise: Use a Real Transaction**
-    1. Implement `createBoardWithDefaultList` exactly as shown, and use it in place of the plain `BoardModel.create` when handling `POST /boards`.
-    2. Confirm a new board always arrives with exactly one "To Do" list.
+    return boardWithHierarchy;
+  },
+};
+```
+
+---
+
+### 3. Under the Hood: ACID Database Transactions
+
+When a user reorders multiple task cards or copies a template list, multiple database updates must succeed **atomically**. If step 3 fails, steps 1 and 2 must be **rolled back**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Express Service
+    participant DB as PostgreSQL Transaction Engine
+
+    App->>DB: BEGIN TRANSACTION
+    App->>DB: UPDATE tasks SET position = 0 WHERE id = 'task-A'
+    App->>DB: UPDATE tasks SET position = 1 WHERE id = 'task-B'
+    alt Network Glitch / Constraint Error on Task C
+        App->>DB: ROLLBACK
+        Note over DB: Database restores original state (Zero partial corruption!)
+    else All Queries Succeed
+        App->>DB: COMMIT
+        Note over DB: Changes permanently written to disk
+    end
+```
+
+```ts
+// Example: Atomic List Position Reordering in Drizzle
+export async function reorderLists(reorderedItems: { id: string; position: number }[]) {
+  return db.transaction(async (tx) => {
+    for (const item of reorderedItems) {
+      await tx
+        .update(lists)
+        .set({ position: item.position })
+        .where(eq(lists.id, item.id));
+    }
+  });
+}
+```
+
+---
+
+### Common Pitfalls & How to Avoid Them
+
+| Pitfall | Root Cause | Fix |
+| :--- | :--- | :--- |
+| **Missing Foreign Key Cascades** | Deleting a board throws a foreign key constraint violation because child lists still exist. | Add `{ onDelete: 'cascade' }` to foreign key definitions in `schema.ts`. |
+| **Connection Leak** | Creating a new `new Pool()` inside route handlers exhausts all database sockets. | Instantiate a single `Pool` in `src/db/index.ts` and export the shared `db` instance. |
+| **Unindexed search queries** | Searching millions of tasks by title without an index causes full table scans ($O(n)$). | Add composite or B-tree indexes to foreign key and search columns. |
 
 ---
 
 ### Week 16: Comprehensive Assignment
 
-**Objective:** Flowboard persists real, relational data in PostgreSQL via Drizzle — no in-memory arrays left anywhere.
+**Objective:** Replace Flowboard's in-memory storage with a persistent PostgreSQL database managed via Drizzle ORM, featuring foreign key cascades, migration generation, and nested relational queries.
 
 **Requirements:**
-
-1. **Schema:** All four tables (`users`, `boards`, `lists`, `tasks`) defined in Drizzle with correct foreign keys and `onDelete: 'cascade'`.
-2. **Migrations:** Generated and applied via Drizzle Kit; visible in your real Neon database.
-3. **CRUD:** Full Model → Service → Controller layers for `boards`, `lists`, and `tasks`, all backed by real Drizzle queries.
-4. **Relations:** A working `GET /boards/:id/full` endpoint using Drizzle's relational query API.
-5. **Transactions:** `createBoardWithDefaultList` correctly creates a board and its default list atomically.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Add a `PATCH /lists/:id/position` endpoint, and write a short comment explaining what could go wrong if two users reordered lists on the same board at the exact same moment without a transaction.
+1. **Database Provisioning:**
+   - PostgreSQL database provisioned on Neon.tech (or local Docker PostgreSQL).
+   - `.env` configured with `DATABASE_URL` and excluded in `.gitignore`.
+2. **Schema & Migrations:**
+   - Complete schema in `src/db/schema.ts` for `users`, `boards`, `lists`, and `tasks` with UUID primary keys and `ON DELETE CASCADE`.
+   - Migration generated and applied using `drizzle-kit generate` and `drizzle-kit migrate`.
+3. **Persistent CRUD:**
+   - `BoardModel` refactored to execute type-safe SQL queries via Drizzle ORM.
+   - Tested that creating, updating, and deleting boards persists across server restarts.
+4. **Relational Query:**
+   - Implemented `GET /api/v1/boards/:id/full` returning the board along with all nested `lists` and their corresponding `tasks`.
+5. **Git Workflow:**
+   - Developed on branch `feature/postgres-drizzle-orm`, merged via Pull Request, and pulled locally.
