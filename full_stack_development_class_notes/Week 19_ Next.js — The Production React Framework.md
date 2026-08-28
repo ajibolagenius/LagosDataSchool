@@ -1,170 +1,291 @@
 # Week 19: Next.js — The Production React Framework
 
-Your React app from Part III works well, but it has a real limitation: everything renders in the browser, after a blank page loads and JavaScript downloads and runs. This week you meet **Next.js**, the framework most production React teams build on, and use it to solve a genuine problem — safely proxying the Nominatim API — before scaffolding the frontend for your capstone.
+Client-Side Rendered (CSR) applications suffer from empty initial HTML, delayed time-to-interactive, and search engine indexing penalties. This week, you master **Next.js (App Router)** — the industry-standard full-stack React meta-framework. You will master **React Server Components (RSC)**, **Hydration Mechanics**, **Rendering Strategies (SSR, SSG, ISR)**, **Next.js Route Handlers as Secure API Proxies**, and **Streaming with React Suspense**.
 
 ---
 
-## Module 1: Why a Meta-Framework?
+## Module 1: The Next.js Paradigm: Server vs. Client Components
 
-### 1. What Next.js Adds Over Plain React
+### 1. The Core Terminology of Modern React Meta-Frameworks
 
-* **Lecture & Concepts:**
-    * Plain React (via Vite) is a **library** for building UI — it doesn't dictate routing, data fetching, or how a page reaches the browser. Next.js is a **framework** built on React that makes those decisions for you, in ways that solve real production problems: file-based routing (a file's path *is* its URL, no router config needed), and **Server Components** that can fetch data and render HTML on the server, before any JavaScript reaches the browser at all.
-    * **SSR (Server-Side Rendering)** generates a page's HTML on the server for each request. **SSG (Static Site Generation)** generates it once, at build time. Both get real content in front of a user faster than a blank page waiting for client-side JavaScript to fetch and render everything — genuinely useful for a page like Lagos Spots' homepage, where the initial spots list doesn't need to wait on the browser at all.
-
-### 2. Server vs. Client Components
-
-* **Lecture & Concepts:**
-    * In Next.js's App Router, every component is a **Server Component** by default — it runs only on the server, can directly `await` data, and ships zero JavaScript for itself to the browser. Adding `'use client'` at the top of a file opts a component into being a **Client Component** — necessary for anything using state, effects, or browser-only APIs (`useState`, `onClick`, `localStorage`).
-    * The practical rule: default to Server Components; reach for `'use client'` only where interactivity genuinely requires it.
-
-* **Class Exercise: Scaffold the Real Project**
-    ```bash
-    npx create-next-app@latest lagos-spots-next --typescript --tailwind --app
-    ```
-    1. Run the command above.
-    2. In `app/page.tsx`, remove the boilerplate and render a plain server component: `<h1>Lagos Spots</h1>` with no `'use client'` directive — confirm it renders correctly with zero client-side JavaScript needed for this page.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **React Server Component (RSC)** | A component that executes **exclusively on the server** during request or build time, emitting raw HTML and serialized payload, with **zero JavaScript shipped to the browser bundle**. | Default in Next.js App Router. Can directly query databases, read server filesystem, and use secrets safely. |
+| **Client Component (`'use client'`)** | A component declared with `'use client'` that is pre-rendered on the server and hydrated in the browser to enable interactivity, state, and browser event listeners. | Used for UI requiring `useState`, `useEffect`, `onClick`, or browser APIs (`localStorage`, `window`). |
+| **Hydration** | The process where React in the browser downloads component JavaScript, inspects the server-rendered HTML, and attaches event listeners to make the DOM interactive. | Bridges the gap between fast server HTML and dynamic client interactivity. |
+| **Serialization Boundary** | The boundary line where data is passed from a Server Component to a Client Component via `props`. | Props **must be JSON-serializable** (primitives, plain objects, arrays). You cannot pass functions or database class instances across this boundary! |
+| **Streaming SSR** | Progressively streaming chunks of server-rendered HTML over HTTP as they become ready, instead of waiting for all slow database queries to finish before sending the page. | Enabled via `<Suspense>` boundaries and `loading.tsx`. |
 
 ---
 
-## Module 2: Route Handlers — Solving a Real Problem
-
-### 1. File-Based Routing & Route Handlers
-
-* **Lecture & Concepts:**
-    * A file at `app/spots/page.tsx` automatically becomes the `/spots` route — no router configuration file to maintain. Dynamic segments work the same way: `app/spots/[id]/page.tsx` becomes `/spots/:id`, read inside the page via its `params` argument.
-    * A **Route Handler** (`app/api/.../route.ts`) is Next.js's direct equivalent of an Express route — it exports functions named after HTTP methods (`GET`, `POST`) and returns a `Response`.
-
-### 2. Why Proxy Nominatim Instead of Calling It From the Browser
-
-* **Lecture & Concepts:**
-    * Calling Nominatim directly from client-side code (as you did in Part II/III) works, but has real downsides at production scale: no caching across users, no control over how many requests your app sends to a free third-party service, and every browser directly depends on that third party's availability and rate limits. Routing the request through your own Route Handler fixes all three — you control caching, you can add your own rate limiting, and if you ever swap providers, only one file changes.
+### 2. Under the Hood: The RSC & Hydration Execution Lifecycle
 
 ```mermaid
 sequenceDiagram
+    autonumber
+    actor User
     participant Browser
-    participant NextServer as Next.js Server Component
-    participant RouteHandler as /api/search Route Handler
-    participant Nominatim
-    Browser->>NextServer: requests /spots?area=Lekki
-    NextServer->>RouteHandler: internal fetch (no CORS, cacheable)
-    RouteHandler->>Nominatim: fetch(search?q=Lekki)
-    Nominatim-->>RouteHandler: raw JSON
-    RouteHandler-->>NextServer: cached, shaped JSON
-    NextServer-->>Browser: fully rendered HTML
+    participant Server as Next.js Node Server
+    participant DB as PostgreSQL Database
+
+    User->>Browser: Enters URL: https://flowboard.app/boards
+    Browser->>Server: HTTP GET /boards
+    Server->>DB: Server Component executes: SELECT * FROM boards
+    DB-->>Server: Board records
+    Note over Server: Server renders Server Components to static HTML<br/>+ generates RSC Payload stream
+    Server-->>Browser: Streams HTML chunk immediately! (First Contentful Paint: <100ms)
+    Browser-->>User: User sees complete rendered page instantly!
+
+    rect rgb(240, 255, 240)
+        Note over Browser: Background Hydration Step
+        Browser->>Server: Fetches Client Component JS Chunks
+        Server-->>Browser: Returns BoardCard.js (Interactive bundle)
+        Browser->>Browser: React binds onClick, useState listeners to the live DOM
+        Note over Browser: Page is now fully interactive (Time to Interactive)!
+    end
 ```
-
-* **In-Depth Example:**
-    ```ts
-    // app/api/search/route.ts
-    import { NextRequest, NextResponse } from 'next/server';
-
-    export async function GET(request: NextRequest) {
-      const query = request.nextUrl.searchParams.get('q');
-      if (!query) {
-        return NextResponse.json({ error: 'Missing query parameter "q"' }, { status: 400 });
-      }
-
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}, Lagos, Nigeria`;
-      const response = await fetch(url, {
-        headers: { 'Accept-Language': 'en' },
-        next: { revalidate: 3600 }, // cache this exact query for 1 hour
-      });
-      const results = await response.json();
-
-      return NextResponse.json(results);
-    }
-    ```
-    ```tsx
-    // app/page.tsx (a Server Component, fetching at request time)
-    async function getResults(query: string) {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/search?q=${query}`, {
-        cache: 'no-store',
-      });
-      return res.json();
-    }
-
-    export default async function HomePage() {
-      const results = await getResults('Lekki');
-      return (
-        <main>
-          <h1>Lagos Spots</h1>
-          <ul>{results.map((r: { display_name: string }) => <li key={r.display_name}>{r.display_name}</li>)}</ul>
-        </main>
-      );
-    }
-    ```
-    * `next: { revalidate: 3600 }` is Next.js's built-in caching hook — the exact caching benefit described above, in one line.
-
-* **Class Exercise: Build the Real Proxy**
-    1. Build `/api/search/route.ts` exactly as shown.
-    2. Build `HomePage` as an `async` Server Component fetching through your own Route Handler, not Nominatim directly.
-    3. Confirm in the Network tab that the browser only ever talks to your own domain — never `nominatim.openstreetmap.org` directly.
 
 ---
 
-## Module 3: Connecting to Flowboard — Starting the Capstone Frontend
+### 3. Server vs. Client Components: Decision Matrix
 
-### 1. Environment Variables & Client-Server Data Flow
+```mermaid
+graph TD
+    Decision{What does the component require?}
+    Decision -->|"Direct DB queries, Private API Secrets, Zero-bundle weight"| ServerComp["<b>Server Component</b> (Default)<br/>• async function Page()<br/>• await db.query()<br/>• 0 KB JavaScript sent to browser"]
+    Decision -->|"Interactivity: useState, useEffect, onClick, Browser APIs"| ClientComp["<b>Client Component</b><br/>• 'use client' at top of file<br/>• Interactive event listeners<br/>• Hydrated on client"]
+```
 
-* **Lecture & Concepts:**
-    * Next.js environment variables prefixed `NEXT_PUBLIC_` are embedded into the client bundle and visible to anyone; unprefixed variables (like a real API secret) stay server-only, readable only inside Server Components and Route Handlers. This distinction matters a great deal once Flowboard's API needs real credentials.
-    * A page that needs both a fast initial render *and* interactivity typically mixes both component types: a Server Component fetches the initial data, and a nested Client Component handles clicks/state on top of it.
+| Use Case | Component Type | Reason |
+| :--- | :--- | :--- |
+| Fetch initial data from PostgreSQL database | **Server Component** | Eliminates network waterfall; keeps database credentials secure on server. |
+| Search filter input with live typing state | **Client Component** | Requires `useState` and `onChange` event handlers. |
+| Static marketing page or documentation article | **Server Component** | Zero client JavaScript; optimal SEO and Core Web Vitals. |
+| Dark mode toggle button reading `localStorage` | **Client Component** | Accesses browser `window` / `localStorage` APIs. |
 
-### 2. Loading States With Suspense
+---
 
-* **Lecture & Concepts:**
-    * `<Suspense fallback={...}>` lets one slow-loading part of a page show a fallback while the rest of the page renders immediately — rather than the whole page waiting on the slowest piece of data.
+## Module 2: Route Handlers & Secure API Proxying
 
-* **In-Depth Example (First Real Flowboard-Connected Page):**
-    ```tsx
-    // app/boards/page.tsx
-    import { Suspense } from 'react';
+### 1. Why Proxy External APIs Through Route Handlers?
 
-    async function getBoards() {
-      const res = await fetch(`${process.env.FLOWBOARD_API_URL}/api/v1/boards`, {
-        headers: { Cookie: `session_id=${/* real session cookie, once auth wiring exists */ ''}` },
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error('Failed to load boards');
-      return res.json();
+In Week 9, we fetched OpenStreetMap's Nominatim API directly from client-side JavaScript. In production, this causes three severe problems:
+1. **CORS & Rate Limiting:** Third-party APIs throttle requests when thousands of different client browsers spam requests.
+2. **Missing Caching:** Every single client request hits the external provider, even for duplicate searches (e.g., "Victoria Island").
+3. **Exposed Secrets:** If an API requires a paid secret API key, storing it in client-side code exposes it to theft.
+
+**Next.js Route Handlers (`app/api/.../route.ts`)** solve this by acting as a secure server-side proxy with built-in edge caching:
+
+```mermaid
+flowchart LR
+    BrowserClient["Browser Client<br/>(Lagos Spots / Flowboard)"] -->|"GET /api/search?q=Lekki"| NextProxy["<b>Next.js Route Handler</b><br/>(app/api/search/route.ts)<br/>• Edge Caches for 1 Hour<br/>• Injects Private API Key"]
+    NextProxy -->|"Cached hit: 0ms<br/>Cache miss: fetch()"| ExternalAPI["External Provider<br/>(Nominatim / Mapbox)"]
+```
+
+---
+
+### 2. Implementing a Cached Route Handler
+
+```ts
+// app/api/search/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const query = searchParams.get('q');
+
+  if (!query || query.trim().length < 2) {
+    return NextResponse.json(
+      { status: 'fail', message: 'Query parameter "q" must be at least 2 characters.' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const encodedQuery = encodeURIComponent(`${query.trim()}, Lagos, Nigeria`);
+    const endpoint = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodedQuery}`;
+
+    // Next.js Extended fetch with Cache Revalidation (ISR)
+    const response = await fetch(endpoint, {
+      headers: {
+        'Accept-Language': 'en',
+        'User-Agent': 'FlowboardLagosApp/1.0',
+      },
+      next: {
+        revalidate: 3600, // Cache response at the CDN Edge for 1 hour (3,600 seconds)
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upstream API failed with status ${response.status}`);
     }
 
-    async function BoardsList() {
-      const boards = await getBoards();
-      return <ul>{boards.map((b: { id: number; title: string }) => <li key={b.id}>{b.title}</li>)}</ul>;
-    }
+    const data = await response.json();
 
-    export default function BoardsPage() {
-      return (
-        <main>
-          <h1>My Boards</h1>
-          <Suspense fallback={<p>Loading boards...</p>}>
-            <BoardsList />
-          </Suspense>
-        </main>
-      );
-    }
-    ```
+    return NextResponse.json({
+      status: 'success',
+      results: data.length,
+      data,
+    });
+  } catch (error: any) {
+    console.error('Proxy search failed:', error);
+    return NextResponse.json(
+      { status: 'error', message: 'Failed to retrieve geospatial data from upstream provider.' },
+      { status: 502 } // Bad Gateway
+    );
+  }
+}
+```
 
-* **Class Exercise: Scaffold the Capstone Frontend**
-    1. Create a new Next.js project intended for the Flowboard frontend (or reuse `lagos-spots-next` if you plan to extend it in Part VI — either is valid, this is a real scoping decision you'll formalize in Week 21).
-    2. Build `BoardsPage` as shown, pointed at your deployed or locally-running Flowboard API from Part IV.
-    3. Confirm it renders real board data, with the `Suspense` fallback visible briefly on a throttled network (DevTools → Network → "Slow 3G").
+---
+
+## Module 3: Composing Server & Client Components
+
+### 1. Next.js App Router File Structure
+
+```
+app/
+├── layout.tsx             # Root layout (HTML, Body, Global Nav)
+├── page.tsx               # Homepage (Server Component)
+├── loading.tsx            # Global streaming fallback skeleton
+├── error.tsx              # Client-side Error Boundary
+├── not-found.tsx          # Custom 404 page
+├── api/
+│   └── search/
+│       └── route.ts       # Proxy Route Handler
+└── boards/
+    ├── page.tsx           # Server Component fetching Flowboard boards
+    ├── [id]/
+    │   └── page.tsx       # Dynamic route: /boards/:id
+    └── components/
+        └── CreateBoardModal.tsx  # 'use client' Interactive Modal
+```
+
+---
+
+### 2. Connecting Next.js to the Flowboard Backend
+
+```tsx
+// app/boards/page.tsx (Async Server Component)
+import { Suspense } from 'react';
+import { cookies } from 'next/headers';
+import Link from 'next/link';
+import { CreateBoardButton } from './components/CreateBoardButton';
+
+interface Board {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
+// Data fetching function running directly on the server
+async function fetchUserBoards(): Promise<Board[]> {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('session_id')?.value;
+
+  const response = await fetch(`${process.env.FLOWBOARD_API_URL || 'http://localhost:4000'}/api/v1/boards`, {
+    headers: {
+      Cookie: `session_id=${sessionCookie || ''}`,
+    },
+    cache: 'no-store', // Always fetch fresh data for authenticated dashboards
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('UNAUTHORIZED');
+    }
+    throw new Error('Failed to load boards from backend service.');
+  }
+
+  const payload = await response.json();
+  return payload.data.boards;
+}
+
+// Suspense-wrapped Async List Component
+async function BoardsGrid() {
+  const boards = await fetchUserBoards();
+
+  if (boards.length === 0) {
+    return (
+      <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+        <p className="text-slate-500">You haven't created any task boards yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {boards.map((board) => (
+        <Link
+          key={board.id}
+          href={`/boards/${board.id}`}
+          className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all"
+        >
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{board.title}</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{board.description}</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// Main Page Layout
+export default function BoardsDashboardPage() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Workspace Boards</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage team projects and sprint workflows.</p>
+        </div>
+        {/* Client Component with Modal Interactivity */}
+        <CreateBoardButton />
+      </div>
+
+      {/* Streaming Suspense Boundary with Skeleton Fallback */}
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-36 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
+            ))}
+          </div>
+        }
+      >
+        <BoardsGrid />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+---
+
+### Common Pitfalls & How to Avoid Them
+
+| Pitfall | Root Cause | Fix |
+| :--- | :--- | :--- |
+| **`ReferenceError: window is not defined`** | Accessing `window`, `document`, or `localStorage` inside a Server Component. | Move browser API code into a Client Component wrapped with `'use client'` inside `useEffect`. |
+| **Hydration Mismatch Error** | Server-rendered HTML differs from Client-rendered HTML (e.g. `new Date().toLocaleTimeString()` or `Math.random()`). | Render dynamic browser timestamps only after component has mounted on client. |
+| **Passing Functions as Props to Client Components** | Non-serializable values crossing the Server-to-Client serialization boundary. | Pass JSON-serializable primitives/objects or use **Server Actions** (`'use server'`). |
 
 ---
 
 ### Week 19: Comprehensive Assignment
 
-**Objective:** A working Next.js app that proxies a real third-party API through its own Route Handler, and a first page reading live data from Flowboard.
+**Objective:** Scaffold the full-stack Flowboard frontend with Next.js App Router, implement a cached Route Handler proxy for geospatial lookups, and connect server-rendered pages to the Flowboard Express API.
 
 **Requirements:**
-
-1. **Scaffold:** A Next.js (App Router, TypeScript, Tailwind) project running via `npm run dev`.
-2. **Route Handler:** `/api/search` proxies Nominatim with server-side caching (`revalidate`), never called directly from client code.
-3. **Server Component Fetching:** The homepage is an `async` Server Component that fetches through the Route Handler.
-4. **Flowboard Connection:** A real page fetches and renders live data from your Flowboard API, wrapped in `<Suspense>` with a visible fallback state.
-5. **Environment Variables:** Correct use of `NEXT_PUBLIC_`-prefixed vs. server-only variables, with no secret ever exposed to the client bundle.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Add a `'use client'` component for a simple search input on the homepage that calls `/api/search` client-side via `fetch` as the user types (debounced, from Week 12's pattern) — a concrete example of mixing Server and Client Components on one page.
+1. **Next.js Project Setup:**
+   - Initialized with `create-next-app` using TypeScript, Tailwind CSS v4, and App Router.
+   - Configured `NEXT_PUBLIC_` vs server-only environment variables in `.env.local`.
+2. **Cached Route Handler Proxy:**
+   - `GET /api/search` implemented proxying Nominatim queries with edge revalidation (`next: { revalidate: 3600 }`).
+3. **Server Component Data Fetching:**
+   - `/boards` dashboard rendered as an async Server Component reading cookies and querying the Flowboard backend API.
+   - Wrapped in `<Suspense>` with animated loading skeleton states.
+4. **Interactive Client Component Composition:**
+   - Interactive `CreateBoardButton` component declared with `'use client'` managing modal open/close states.
+5. **Git Workflow:**
+   - Developed on branch `feature/nextjs-fullstack`, merged via Pull Request, and pulled locally.

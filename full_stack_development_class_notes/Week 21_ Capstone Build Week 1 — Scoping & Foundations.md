@@ -1,79 +1,156 @@
 # Week 21: Capstone Build Week 1 — Scoping & Foundations
 
-Every tool has now been taught. This week and next, students apply all of it to one final, real, deployed project. The three daily sessions shift format: Monday is structured scoping, Tuesday and Wednesday become office-hours-style build time with active 1:1 code review — the instructor's role moves from lecturing to unblocking.
+All core software engineering disciplines — semantic HTML, CSS layout systems, modern TypeScript, React, Next.js App Router, Express REST APIs, PostgreSQL relational modeling, authentication security, Zod validation, automated testing, Docker containerization, and CI/CD pipelines — have been formally taught. In Weeks 21 and 22, you synthesize these tools into a single, cohesive, production-deployed **Full-Stack Capstone Project**.
+
+This week focuses on **Product Scoping**, **Critical Path Modeling**, **Relational Schema Architecture**, and establishing the **Minimum Viable Product (MVP)** foundation.
 
 ---
 
-## Module 1: Choosing the Real Scope
+## Module 1: Product Scoping & Engineering Tradeoffs
 
-### 1. Two Legitimate Paths
+### 1. The Core Terminology of Technical Scoping
 
-* **Facilitation Notes:**
-    * **Path A — Extend Flowboard:** Take the existing Trello-style API and its Next.js frontend (started Week 19) and finish them into one cohesive, polished product — real-time-feeling updates, drag-to-reorder lists, a genuinely pleasant UI. Lower research risk, since the architecture is already proven; the challenge is depth and polish.
-    * **Path B — A New Idea, Same Architecture:** Students pitch their own concept, but it must use the *exact* proven stack: Next.js + Express (or Next.js Route Handlers alone, if the idea doesn't need a separately-deployed API) + Postgres/Drizzle + session auth + Zod + tests + Docker/CI + deployed. This is real ownership, at the cost of more unknowns to work through under time pressure.
-    * Either path is legitimate — the deliverable checklist at the end of Week 22 is identical either way. Steer a student away from Path B only if their idea can't realistically fit the remaining two weeks (a common failure mode: scoping something that needs real-time multiplayer, payments, or a large dataset — redirect toward a smaller, real slice of the idea instead of the whole thing).
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Minimum Viable Product (MVP)** | The smallest possible slice of a product that delivers the core value proposition to end users end-to-end. | Prevents starting dozens of half-finished features; ensures one complete user workflow is built and hardened. |
+| **Scope Creep** | The uncontrolled expansion of project requirements as development progresses, without adjustments to time or resources. | The primary reason software projects fail deadlines. Must be aggressively countered by pruning secondary features. |
+| **Critical User Path (Happy Path)** | The sequential journey a user takes through an application to achieve their primary goal (e.g., Signup $\to$ Create Board $\to$ Add Task $\to$ Mark Complete). | Must function flawlessly before auxiliary features (avatars, dark mode, social logins) are built. |
+| **Non-Functional Requirements (NFRs)** | System qualities such as security (AuthN/AuthZ), performance ($<200\text{ms}$ API response), reliability, and testability. | Architectural constraints that must be built into the foundation, not bolted on at the end. |
+
+---
+
+### 2. Choosing Your Capstone Path
 
 ```mermaid
 flowchart TD
-    Start([Choose capstone scope]) --> Q1{Confident extending<br/>Flowboard is enough<br/>of a challenge?}
-    Q1 -->|Yes| PathA[Path A: Polish & extend Flowboard]
-    Q1 -->|No, want to build<br/>something of my own| Q2{Can it be built with<br/>the exact same stack,<br/>in ~2 weeks?}
-    Q2 -->|Yes| PathB[Path B: New idea, same architecture]
-    Q2 -->|No — too large| Scope[Scope down to one real,<br/>small, complete slice]
-    Scope --> Q2
+    Start([Choose Capstone Path]) --> Choice{Which path aligns with your engineering goals?}
+    
+    Choice -->|"Path A: Deep Polish & Feature Expansion"| Flowboard["<b>Path A: Production Flowboard (Kanban App)</b><br/>• Extend proven Week 15-20 architecture<br/>• Drag-and-drop task reordering<br/>• List management & member invitations<br/>• Low architectural risk, high depth & polish"]
+    
+    Choice -->|"Path B: Novel Domain Application"| Bespoke["<b>Path B: Bespoke Full-Stack Application</b><br/>• Pitch custom idea (Real Estate, Clinic Booking, Logistics)<br/>• Must use the EXACT same proven stack<br/>• High ownership, higher scoping discipline required"]
+    
+    Bespoke --> ScopeCheck{"Can the core MVP workflow be completed in 10 days?"}
+    ScopeCheck -->|"No (Requires complex payments, websockets, AI models)"| Prune["Prune Secondary Scope Down to 1 Core Workflow"]
+    Prune --> ScopeCheck
+    ScopeCheck -->|"Yes (Realistic & Scoped)"| Approved["Ready for Schema Review"]
+    Flowboard --> Approved
 ```
 
-### 2. A Scoping Conversation, Not Just a Form
+---
 
-* **Facilitation Notes:** For each student, walk through: What's the single core user action this app must support end to end? (Not a feature list — one real workflow, done completely.) What's explicitly *out* of scope for these two weeks? Which of the 7 final deliverable requirements (Week 22) is the riskiest for this specific idea, and what's the plan for it?
+### 3. The Scope Downsizing Matrix: What to Keep vs. What to Cut
 
-* **Workshop Activity: Write a One-Page Scope Doc**
-    1. Each student writes: the app's one-sentence purpose, its core user workflow, its real data model (a rough ER sketch, same style as Week 16's), and an explicit "not doing this" list.
-    2. 1:1 review with the instructor before any code is written this week — this is the highest-leverage 15 minutes of the entire capstone.
+When building under tight engineering timelines, apply the **MoSCoW Prioritization Framework**:
+
+| Priority Level | Description | Capstone Examples (Keep vs. Cut) |
+| :--- | :--- | :--- |
+| **Must Have (P0 - MVP)** | Essential to the core workflow; app fails without it. | • Secure Session Login / Signup<br>• Relational CRUD with foreign keys<br>• Server-side Zod validation<br>• Protected user data scoping (IDOR defense) |
+| **Should Have (P1)** | High value, but app still functions without it. | • Real-time search filtering<br>• Optimistic UI state updates<br>• Error toast notifications |
+| **Could Have (P2)** | Nice-to-have if time permits. | • User avatar uploads<br>• Due date calendar picker<br>• Export to CSV/JSON |
+| **Won't Have (P3 - Cut!)** | Explicitly out of scope for Capstone MVP. | • Third-party OAuth (Google/GitHub)<br>• Live WebSocket multiplayer<br>• Real payment gateways (use mock flow instead) |
 
 ---
 
 ## Module 2: Data Modeling Workshop
 
-### 1. From Idea to Schema
+### 1. From User Stories to Relational Entity Schemas
 
-* **Facilitation Notes:** Every capstone idea, however different, reduces to the same exercise Week 16 already taught: identify the real entities, their relationships, and which fields actually matter for the core workflow — resist the urge to model every field a "real" version of the product might eventually need.
+Before writing backend code, convert user stories into a formalized **Entity-Relationship Diagram (ERD)**:
 
-* **Workshop Activity: Schema Review**
-    1. Each student sketches their real Drizzle schema (tables, columns, foreign keys) for their scoped idea.
-    2. Pair students up to review each other's schema for one thing specifically: "what happens when X is deleted — does everything reference it correctly cascade or restrict?"
-    3. Instructor reviews and approves each schema before migrations are written — a wrong foreign key relationship discovered in Week 22 costs real time.
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ USERS : "1. belongs to"
+    USERS ||--o{ PROJECTS : "2. creates / owns"
+    PROJECTS ||--o{ ITEMS : "3. contains"
+    ITEMS ||--o{ AUDIT_LOGS : "4. tracks"
+
+    USERS {
+        uuid id PK
+        varchar email UK
+        text password_hash
+        timestamp created_at
+    }
+
+    PROJECTS {
+        uuid id PK
+        uuid user_id FK "ON DELETE CASCADE"
+        varchar title
+        text description
+        timestamp created_at
+    }
+
+    ITEMS {
+        uuid id PK
+        uuid project_id FK "ON DELETE CASCADE"
+        varchar title
+        varchar status "enum: pending, active, completed"
+        integer priority "0: Low, 1: Medium, 2: High"
+        timestamp due_date
+    }
+```
 
 ---
 
-## Module 3: Build Time & Code Review Discipline
+### 2. Schema Architecture Review Checklist
 
-### 1. Structuring Tuesday/Wednesday as Real Office Hours
+Before executing migrations on your production database, verify these relational integrity rules:
 
-* **Facilitation Notes:** Rather than new lecture content, these two sessions run as: a 10-minute stand-up (what did you finish yesterday, what's today's one goal, what's blocking you), then heads-down build time with the instructor circulating for 1:1 unblocking, ending with a short demo of whatever real progress was made — even five minutes of working code beats a full session of silent, unshared struggle.
+1. **Foreign Key Deletion Rules:**
+   - Does every `references(() => table.id)` have an explicit `{ onDelete: 'cascade' }` or `{ onDelete: 'restrict' }`?
+   - *Why:* Prevents orphaned rows or accidental database deadlocks.
+2. **Unique Constraints & Indexes:**
+   - Are unique business keys (e.g., `email`, `slug`) marked with `.unique()`?
+   - Are foreign key columns indexed for fast join performance?
+3. **Data Type Precision:**
+   - Are textual fields constrained with maximum lengths (e.g., `varchar('title', { length: 150 })`) rather than unbounded `text` where appropriate?
+   - Are timestamps configured with `{ withTimezone: true }`?
 
-### 2. A Real Code Review Checklist
+---
 
-* **Facilitation Notes:** Use this same checklist for every 1:1 review this week and next — it's a distillation of the course's actual standards, not a new one:
-    * Does every write endpoint validate input (Week 18)?
-    * Is every mutation scoped to the authenticated user, with a real ownership check (Week 17)?
-    * Are errors handled through the central handler, not scattered `try/catch` blocks with inconsistent shapes (Week 18)?
-    * Is there at least one real test covering the core workflow (Week 18)?
-    * Naming: does a function or variable's name honestly describe what it does, with no comment needed to explain "what" (only "why," where genuinely non-obvious)?
+## Module 3: Engineering Discipline & 1:1 Code Review
 
-* **Supplementary Reading (Introduced Now, Not Before):** This is the right week to point students at *Clean Code*, *Code Complete*, and *Design Patterns* — not as required reading, but as a reference for the specific question "how do I make this specific function/class better," asked about their own real code rather than a generic example.
+### 1. Daily Standup Cadence
+
+Structure build sessions around a 10-minute standup answering three questions:
+1. **What concrete milestone did you complete yesterday?** (e.g., "Implemented Zod validation on task creation endpoints").
+2. **What single deliverable will you complete today?** (e.g., "Build the Next.js Server Component dashboard").
+3. **What blockers or unknown technical risks are slowing you down?** (e.g., "CORS cookie rejection between Vercel and Railway").
+
+---
+
+### 2. Production Code Review Checklist
+
+During 1:1 reviews with instructors and peers, every Pull Request is audited against these 5 pillars:
+
+```mermaid
+graph TD
+    Audit["<b>Code Review Audit</b>"]
+    Audit --> P1["<b>1. Validation (Edge):</b><br/>Is all incoming data validated via Zod?"]
+    Audit --> P2["<b>2. Authorization (IDOR):</b><br/>Is every query scoped to req.user.id?"]
+    Audit --> P3["<b>3. Error Flow:</b><br/>Do errors pass through AppError to global middleware?"]
+    Audit --> P4["<b>4. Type Safety:</b><br/>Is code 100% strict TypeScript (Zero 'any')?"]
+    Audit --> P5["<b>5. Test Coverage:</b><br/>Does a Supertest integration test prove the happy path?"]
+```
 
 ---
 
 ### Week 21: Comprehensive Assignment
 
-**Objective:** A locked, realistic scope, an approved data model, and real, working progress on the core workflow.
+**Objective:** Lock in your capstone technical scope, receive instructor approval on your database ERD, generate Drizzle migrations, and build the end-to-end authenticated core happy path.
 
 **Requirements:**
-
-1. **Scope Doc:** A one-page written scope (purpose, core workflow, data model sketch, explicit exclusions), reviewed 1:1 with the instructor.
-2. **Schema:** A Drizzle schema matching the approved data model, migrated to a real database.
-3. **Progress:** By Wednesday's end, the core workflow's happy path works end to end for at least one piece of it (e.g., a user can sign up, log in, and create the app's primary resource) — not necessarily styled or polished yet.
-4. **Git:** A real repository (or repositories, if frontend/backend are separate), with commits reflecting real, incremental progress — not one giant commit at the end of the week.
-
-**Bonus Challenge:** Write a `README.md` for the capstone project as if handing it off to a new engineer — setup instructions, environment variables needed, and how to run the test suite. A real team would expect this to exist from day one, not written after the fact.
+1. **1-Page Technical Specification Document:**
+   - Problem statement and target user.
+   - Core MVP workflow (step-by-step user path).
+   - Explicit "Out of Scope" list.
+   - Full ERD diagram sketch.
+2. **Database Provisioning & Migrations:**
+   - PostgreSQL schema declared in Drizzle ORM and successfully migrated to a live cloud database.
+3. **Core Backend Endpoints:**
+   - User authentication routes (`signup`, `login`, `logout`) operational with Bcrypt hashing and session cookies.
+   - Core entity CRUD routes operational with Zod validation.
+4. **Initial Next.js Frontend Wiring:**
+   - Next.js application scaffolded with App Router and Tailwind CSS.
+   - Authenticated dashboard page successfully reading data from backend via Server Components.
+5. **Git Workflow:**
+   - Work managed on feature branches (`feature/capstone-auth`, `feature/capstone-schema`), committed with conventional commits, and opened as PRs.
