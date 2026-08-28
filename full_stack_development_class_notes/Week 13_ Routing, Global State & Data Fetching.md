@@ -366,3 +366,20 @@ export const SearchBar: React.FC = () => {
    - `useNominatimSearch` custom query hook with cache-key parameterization and query cancellation.
 4. **Git Workflow:**
    - Developed on branch `feature/routing-context-query`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [React Router v6 Official Documentation](https://reactrouter.com/en/main) — Complete guide to nested route layouts, URL params, loaders, and data actions.
+- [TanStack Query (React Query) Official Docs](https://tanstack.com/query/latest) — Declarative asynchronous server-state management, cache invalidation, and garbage collection.
+- [React Official Documentation: Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context) — When and how to use React Context effectively without over-rendering.
+
+### Recommended Textbooks & Canonical Books
+- **React Design Patterns and Best Practices (3rd Edition)** by Carlos Santana Roldán (Packt) — *Chapters 6–8: Context API architecture, State machines, and Server-state integration.*
+- **Micro Frontends in Action** by Michael Geers (Manning) — *Client-side routing mechanics, History API integration, and decoupled frontend architecture.*
+
+### Deep Dives & Best Practices
+- [TkDodo's Blog: Practical React Query](https://tkdodo.eu/blog/practical-react-query) — The industry-standard deep-dive series on query keys, caching lifecycles, and optimistic updates.
+- [Kent C. Dodds: Application State Management with React](https://kentcdodds.com/blog/application-state-management-with-react) — Architectural guide to separating server cache from client UI state.

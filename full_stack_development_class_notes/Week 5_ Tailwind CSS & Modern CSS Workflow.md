@@ -249,3 +249,20 @@ themeToggleBtn?.addEventListener('click', () => {
    - Theme preference persisted in `localStorage`.
 4. **Git Workflow:**
    - Developed on branch `feature/tailwind-migration`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs) — Official guide for utility-first styling, CSS theme variables, and JIT compilation.
+- [Vite Official Guide](https://vite.dev/guide/) — Next-generation frontend tooling and native ES module development server documentation.
+- [MDN Web Docs: prefers-color-scheme](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme) — Standards guide for detecting operating system light/dark mode preferences.
+
+### Recommended Textbooks & Canonical Books
+- **Refactoring UI** by Adam Wathan and Steve Schoger — *The definitive design guide for developers: practical heuristics for layout, hierarchy, spacing, and color theory.*
+- **Modern CSS: Master the Key Concepts of CSS for Modern Web Development** by Alex Libby (Apress) — *Explores modern build tools, PostCSS pipelines, and utility-first architecture.*
+
+### Deep Dives & Optimization Articles
+- [web.dev: Building a Theme Switch Component](https://web.dev/building-a-theme-switch-component/) — Zero-FOUT inline script strategies and accessible toggle controls.
+- [Tailwind CSS: Dynamic Class Names Pitfall](https://tailwindcss.com/docs/content-configuration#dynamic-class-names) — Explaining static extraction mechanics and why string concatenation fails in JIT compilers.

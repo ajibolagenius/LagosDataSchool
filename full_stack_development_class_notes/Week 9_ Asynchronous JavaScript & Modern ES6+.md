@@ -319,3 +319,21 @@ import { createSpotCardElement } from './dom';
    - Code cleanly separated into `src/types.ts`, `src/api.ts`, `src/storage.ts`, `src/dom.ts`, and `src/main.ts` using ES Module `import`/`export`.
 5. **Git Workflow:**
    - Developed on branch `feature/async-api-modules`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: Asynchronous JavaScript](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Asynchronous) — Comprehensive guide to the Event Loop, Promises, `async`/`await`, and the Fetch API.
+- [MDN Web Docs: AbortController API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) — Standards guide for cancelling in-flight fetch requests and preventing async race conditions.
+- [OpenStreetMap Nominatim API Specification](https://nominatim.org/release-docs/latest/api/Search/) — Documentation for free geospatial search queries, parameters, and usage policies.
+
+### Recommended Textbooks & Canonical Books
+- **You Don't Know JS: Async & Performance** by Kyle Simpson (O'Reilly) — *Chapters 1–4: Asynchrony: Now & Later, Callbacks, Promises, and Generators/Async.*
+- **JavaScript: The Good Parts** by Douglas Crockford (O'Reilly) — *Foundations of asynchronous callback design patterns and modular JavaScript.*
+
+### Deep Dives & Visual Explainers
+- [Philip Roberts: What the heck is the event loop anyway? (JSConf)](https://www.youtube.com/watch?v=8aGhZQkoFbQ) — The canonical 20-minute video presentation explaining the Call Stack, Web APIs, Task Queue, and Event Loop.
+- [JavaScript Visualized: Event Loop by Lydia Hallie](https://dev.to/lydiahallie/javascript-visualized-event-loop-3dif) — Animated gifs illustrating microtasks vs macrotasks prioritization.
+- [JavaScript.info: Promises, async/await](https://javascript.info/async) — Clear interactive tutorials on Promise chaining and error handling.

@@ -154,3 +154,20 @@ graph TD
    - Authenticated dashboard page successfully reading data from backend via Server Components.
 5. **Git Workflow:**
    - Work managed on feature branches (`feature/capstone-auth`, `feature/capstone-schema`), committed with conventional commits, and opened as PRs.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Engineering Methodologies & Standards
+- [GitHub Flow: Branching & Pull Request Guide](https://docs.github.com/en/get-started/using-github/github-flow) — Standards for short-lived feature branches, atomic commits, and asynchronous peer reviews.
+- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) — Standardized commit message prefixes (`feat:`, `fix:`, `refactor:`, `docs:`).
+
+### Recommended Textbooks & Canonical Books
+- **The Pragmatic Programmer: Your Journey to Mastery (20th Anniversary Edition)** by David Thomas and Andrew Hunt (Addison-Wesley) — *Chapters 1–3: A Pragmatic Philosophy, A Pragmatic Approach, and The Basic Tools.*
+- **Shape Up: Stop Running in Circles and Ship Work That Matters** by Ryan Singer (Basecamp) — *The foundational methodology for appetite-based scoping, circuit breakers, and shipping MVP slices.* (Available free online at `basecamp.com/shapeup`).
+- **Clean Architecture: A Craftsman's Guide to Software Structure and Design** by Robert C. Martin (Prentice Hall) — *Enforcing dependency inversion, entity boundaries, and decoupled business logic.*
+
+### Architectural Checklists & Design Resources
+- [Martin Fowler: Software Architecture Guide](https://martinfowler.com/architecture/) — Essential concepts of component modularity, technical debt, and trade-offs.
+- [Drizzle ORM: Schema Best Practices](https://orm.drizzle.team/docs/goodies) — Relational patterns, indexes, and cascade constraints.

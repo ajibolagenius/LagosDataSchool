@@ -367,3 +367,21 @@ img {
    - Form fields on `submit.html` styled with distinct focus states (`:focus-visible`).
 5. **Git Workflow:**
    - Developed on branch `feature/css-styling-bem`, committed with conventional commit messages, merged via PR, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: CSS Cascading and Inheritance](https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/Cascade_and_inheritance) — Core rules governing specificity calculation, inheritance, and cascade resolution.
+- [W3C CSS Box Model Module Level 3](https://www.w3.org/TR/css-box-3/) — Official specification defining margin, border, padding, and content areas.
+- [BEM Methodology Official Documentation](https://en.bem.info/methodology/quick-start/) — Naming conventions and architecture principles for modular, flat-specificity CSS.
+
+### Recommended Textbooks & Canonical Books
+- **CSS Secrets: Better Solutions to Everyday Web Projects** by Lea Verou (O'Reilly) — *Deconstructs practical CSS techniques, hardware-accelerated transitions, and standards-compliant visual polish.*
+- **Every Layout: Relearn CSS Layout** by Heydon Pickering and Andy Bell — *Principles of building responsive, composable layout primitives without fragile hacks.*
+- **CSS: The Definitive Guide (4th Edition)** by Eric A. Meyer and Estelle Weyl (O'Reilly) — *The comprehensive technical reference for CSS selectors, the cascade, and visual formatting.*
+
+### Deep Dives & Performance Guides
+- [web.dev: Learn CSS — Specificity](https://web.dev/learn/css/specificity/) — Visual breakdown of the (a, b, c, d) specificity weight formula.
+- [CSS-Tricks: Box Sizing](https://css-tricks.com/box-sizing/) — Detailed analysis of `content-box` vs `border-box` behavior.

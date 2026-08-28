@@ -289,3 +289,20 @@ export default function BoardsDashboardPage() {
    - Interactive `CreateBoardButton` component declared with `'use client'` managing modal open/close states.
 5. **Git Workflow:**
    - Developed on branch `feature/nextjs-fullstack`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [Next.js App Router Documentation](https://nextjs.org/docs/app) — The comprehensive guide to Server Components, dynamic routing, caching, and Route Handlers.
+- [React Server Components RFC (GitHub)](https://github.com/reactjs/rfcs/blob/main/text/0188-server-components.md) — The original engineering specification for React Server Components.
+- [Vercel Next.js Deployment Best Practices](https://vercel.com/docs/frameworks/nextjs) — Serverless functions, Edge Middleware, and ISR caching on Vercel.
+
+### Recommended Textbooks & Canonical Books
+- **Real-World Next.js** by Michele Riva (Packt) — *Production architecture, incremental static regeneration (ISR), and performance optimization.*
+- **Patterns.dev: Modern Web App Design Patterns** by Addy Osmani and Lydia Hallie — *Deep dive into SSR, SSG, Streaming, Islands Architecture, and Progressive Hydration.* (Available free online at `patterns.dev`).
+
+### Deep Dives & Architectural Guides
+- [Lee Robinson: How React Server Components Work Under the Hood](https://leerob.io/blog/react-server-components) — Visualizing the wire format, serialization boundaries, and bundle elimination.
+- [Next.js Caching and Revalidation Guide](https://nextjs.org/docs/app/building-your-application/caching) — Complete breakdown of the 4 caching layers in Next.js.

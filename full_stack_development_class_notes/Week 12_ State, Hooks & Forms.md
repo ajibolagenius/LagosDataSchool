@@ -433,3 +433,20 @@ export const AddSpotForm: React.FC<AddSpotFormProps> = ({ onAddSpot }) => {
    - Form submission prepends new spot to state, updates directory immediately, and resets form inputs.
 4. **Git Workflow:**
    - Developed on branch `feature/state-hooks-forms`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [React Official Documentation: Managing State](https://react.dev/learn/managing-state) — React state architecture, lifting state, and choosing the state structure.
+- [React Official Documentation: Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — Deep dive into the `useEffect` lifecycle, dependency arrays, and cleanup functions.
+- [React Official Documentation: Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks) — Rules and patterns for creating encapsulated custom hooks.
+
+### Recommended Textbooks & Canonical Books
+- **React Hooks in Action** by John Larsen (Manning) — *Comprehensive exploration of useState, useReducer, useEffect, and custom hook abstractions.*
+- **Fullstack React with TypeScript** by Nate Murray, Felipe Coury, Ari Lerner, and Carlos Souza — *Form management, typed state workflows, and architecture patterns.*
+
+### Deep Dives & Articles
+- [Dan Abramov: A Complete Guide to useEffect](https://overreacted.io/a-complete-guide-to-useeffect/) — The definitive technical analysis of closures, dependency arrays, and effect synchronization.
+- [Kent C. Dodds: Stop using isLoading booleans (State Machines in React)](https://kentcdodds.com/blog/stop-using-isloading-booleans) — Clean async lifecycle modeling with discriminated unions.

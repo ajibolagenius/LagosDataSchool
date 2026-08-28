@@ -374,3 +374,22 @@ gitGraph
      - The **HTTP Method** and **Status Code** of the first request.
      - The value of the `Content-Type` response header.
      - The total transfer size (in KB) of all assets loaded on the initial page load.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: How the Web Works](https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/How_the_Web_works) — Comprehensive guide on network requests, DNS lookups, and web asset parsing.
+- [Git SCM Official Documentation & Pro Git Book](https://git-scm.com/doc) — The definitive, free open-source manual on Git commands and distributed object graph internals.
+- [GitHub Documentation: GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow) — Official guide to branching, pull requests, and code review workflows.
+- [RFC 9110: HTTP Semantics](https://datatracker.ietf.org/doc/html/rfc9110) — The official IETF internet standard specification for HTTP methods, headers, and status codes.
+
+### Recommended Textbooks & Canonical Books
+- **Pro Git (2nd Edition)** by Scott Chacon and Ben Straub (Apress) — *Chapters 1–3: Git Basics, Branching, and Distributed Workflows.* (Available free online at `git-scm.com/book`).
+- **High Performance Browser Networking** by Ilya Grigorik (O'Reilly) — *Chapters 1–4: Primer on Latency, TCP 3-Way Handshake, UDP, and TLS Encryption.*
+- **Computer Networking: A Top-Down Approach (8th Edition)** by James Kurose and Keith Ross (Pearson) — *Chapter 2: Application Layer (DNS, HTTP/HTTPS architectures).*
+
+### Interactive Tools & Visual Learning
+- [LearnGitBranching.js.org](https://learngitbranching.js.org/) — Interactive sandbox visualizer for mastering commits, branches, rebasing, and merges.
+- [Visualizing Git Concepts](https://git-school.github.io/visualizing-git/) — Real-time animated graph rendering of Git DAG nodes during staging and commits.

@@ -433,3 +433,22 @@ describe('Flowboard API Endpoints', () => {
    - Running `npm run test` executes and passes all test suites.
 4. **Git Workflow:**
    - Backend milestone tagged `v1.0.0-backend`, merged into `main`, and pushed to GitHub.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [Zod Official Documentation](https://zod.dev/) — TypeScript-first schema declaration, validation, and type inference guide.
+- [Supertest API Reference](https://github.com/ladjs/supertest) — High-level abstraction for testing Node.js HTTP servers with SuperAgent.
+- [Vitest Guide: Node Environment](https://vitest.dev/guide/environment.html) — Configuring fast in-memory Node.js test execution.
+- [The Twelve-Factor App Methodology](https://12factor.net/) — Standard principles for building scalable, testable, cloud-native web services.
+
+### Recommended Textbooks & Canonical Books
+- **Unit Testing Principles, Practices, and Patterns** by Vladimir Khorikov (Manning) — *Foundational guide to writing maintainable, valuable integration tests with high ROI.*
+- **Production-Ready Microservices** by Susan J. Fowler (O'Reilly) — *Chapter 4: Robustness, Fault Tolerance, Centralized Error Handling, and Validation.*
+- **Clean Architecture: A Craftsman's Guide to Software Structure and Design** by Robert C. Martin (Prentice Hall) — *Separation of concerns, boundary interfaces, and independent testability.*
+
+### Deep Dives & Engineering Guidelines
+- [Joyent: Error Handling in Node.js](https://www.joyent.com/node-js/production/design/errors) — The canonical explanation of Operational vs Programmer errors.
+- [TypeScript-ESLint: Best Practices for Error Handling](https://typescript-eslint.io/rules/only-throw-error/) — Enforcing strict error inheritance and typed catch clauses.

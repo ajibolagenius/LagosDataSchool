@@ -315,3 +315,23 @@ flowchart LR
    - Flowboard Next.js frontend deployed to Vercel communicating with the live backend over HTTPS.
 5. **Git Workflow:**
    - DevOps milestone tagged `v1.0.0-production`, merged into `main`, and pushed to GitHub.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [Docker Official Documentation](https://docs.docker.com/) — Complete guide to Dockerfiles, images, containers, and multi-stage builds.
+- [Docker Compose Specification](https://docs.docker.com/compose/) — Multi-container declarative orchestration and service dependencies.
+- [GitHub Actions Documentation](https://docs.github.com/en/actions) — Workflow syntax, runner environments, matrix builds, and secret management.
+- [Open Container Initiative (OCI) Specifications](https://opencontainers.org/) — Industry standards for container runtime and image formats.
+
+### Recommended Textbooks & Canonical Books
+- **Docker Deep Dive** by Nigel Poulton — *Comprehensive walkthrough of container architecture, Linux cgroups/namespaces, images, and networking.*
+- **Continuous Delivery: Reliable Software Releases through Build, Test, and Deployment Automation** by Jez Humble and David Farley (Addison-Wesley) — *The foundational textbook on CI/CD pipelines, automated testing, and zero-downtime releases.*
+- **The DevOps Handbook (2nd Edition)** by Gene Kim, Jez Humble, Patrick Debois, John Willis, and Nicole Forsgren — *Principles of flow, feedback, and continuous learning in modern engineering teams.*
+
+### Deployment Platform Guides
+- [Railway Platform Documentation](https://docs.railway.com/) — Deploying Dockerized microservices and configuring persistent services.
+- [Render Deployment Guide](https://docs.render.com/) — Native Docker and web service deployment documentation.
+- [Docker Best Practices for Node.js Applications](https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md) — Official guidelines on caching, non-root users, and signal handling (`SIGTERM`).

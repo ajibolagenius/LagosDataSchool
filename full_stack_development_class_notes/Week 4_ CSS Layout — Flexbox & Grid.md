@@ -278,3 +278,22 @@ graph LR
    - Entire application wrapped in a `.page-container` with a `max-width: 1200px` centered on the viewport (`margin: 0 auto`).
 6. **Git Workflow:**
    - Developed on branch `feature/responsive-flex-grid`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: CSS Flexible Box Layout](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout) — In-depth guide to Flexbox axes, alignment, and space distribution algorithms.
+- [MDN Web Docs: CSS Grid Layout](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout) — Complete technical specification of two-dimensional grid tracks, areas, and auto-placement.
+- [W3C CSS Grid Layout Module Level 2](https://www.w3.org/TR/css-grid-2/) — Official W3C standard defining subgrid and implicit track algorithms.
+
+### Recommended Textbooks & Canonical Books
+- **CSS Grid Layout: Ready to Use Solutions for Web Designers** by Rachel Andrew (A Book Apart) — *Practical, pattern-driven guide to designing responsive layouts with CSS Grid.*
+- **Responsive Web Design (2nd Edition)** by Ethan Marcotte (A Book Apart) — *The foundational textbook that introduced the concepts of fluid grids, flexible images, and media queries.*
+- **Layout Land & Modern Layouts** by Jen Simmons — *Visual and structural walkthroughs of intrinsic web design.*
+
+### Interactive Learning Games & Cheatsheets
+- [CSS-Tricks: A Complete Guide to Flexbox](https://css-tricks.com/snippets/css/a-guide-to-flexbox/) — The industry's most referenced visual Flexbox cheatsheet.
+- [CSS-Tricks: A Complete Guide to CSS Grid](https://css-tricks.com/snippets/css/complete-guide-grid/) — The industry's most referenced visual CSS Grid cheatsheet.
+- [Flexbox Froggy](https://flexboxfroggy.com/) & [Grid Garden](https://cssgridgarden.com/) — Interactive puzzle games for mastering layout properties.

@@ -226,5 +226,23 @@ graph TD
 
 ---
 
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Security Standards
+- [Helmet.js Official Documentation](https://helmetjs.github.io/) — Securing Express apps by setting various HTTP response headers.
+- [Express Rate Limit Documentation](https://github.com/express-rate-limit/express-rate-limit) — Basic rate-limiting middleware for Express.
+- [Morgan HTTP Request Logger](https://github.com/expressjs/morgan) — HTTP request logger middleware for Node.js.
+
+### Recommended Textbooks & Canonical Books
+- **Clean Code: A Handbook of Agile Software Craftsmanship** by Robert C. Martin (Prentice Hall) — *Writing readable, intention-revealing code, meaningful naming, and small functions.*
+- **Site Reliability Engineering (SRE): How Google Runs Production Systems** by Betsy Beyer, Chris Jones, Jennifer Petoff, and Niall Richard Murphy (O'Reilly) — *Foundations of monitoring, alerting, postmortems, and managing risk in production systems.* (Available free online at `sre.google/sre-book/table-of-contents/`).
+- **Code Complete (2nd Edition)** by Steve McConnell (Microsoft Press) — *The classic handbook of software construction, defensive programming, and debugging techniques.*
+
+### Architecture & Production Pitching Guides
+- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/) — Pillars of Operational Excellence, Security, Reliability, Performance Efficiency, and Cost Optimization.
+- [Simon Brown: The C4 Model for Visualizing Software Architecture](https://c4model.com/) — Clear diagrams for presenting software architecture at Context, Container, Component, and Code levels.
+
+---
+
 ### Congratulations! 🎓
 From your first `git init` and HTML boilerplate in Week 1 to architecting a production-hardened, tested, containerized, and deployed full-stack system in Week 22 — you have mastered the complete engineering stack.

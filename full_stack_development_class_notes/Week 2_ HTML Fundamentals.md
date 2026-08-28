@@ -399,3 +399,21 @@ Building accessible software is a fundamental professional requirement:
    - Passed keyboard navigation test (able to `Tab` through all links and form inputs smoothly).
 4. **Git Workflow:**
    - Changes developed on branch `feature/semantic-markup`, pushed to GitHub, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: HTML Elements Reference](https://developer.mozilla.org/en-US/docs/Web/HTML/Element) — Complete index and specification documentation for all standard HTML5 tags and attributes.
+- [WHATWG HTML Living Standard](https://html.spec.whatwg.org/multipage/) — The authoritative, canonical specification maintained by browser vendors.
+- [W3C Web Content Accessibility Guidelines (WCAG 2.2)](https://www.w3.org/WAI/standards-guidelines/wcag/) — Global accessibility standards for semantic HTML, keyboard focus, and contrast.
+
+### Recommended Textbooks & Canonical Books
+- **HTML5 for Web Designers (2nd Edition)** by Jeremy Keith and Rachel Andrew (A Book Apart) — *Foundational rationale behind HTML5 semantic tags and living standards.*
+- **Inclusive Design Patterns: Coding Accessibility Into Web Design** by Heydon Pickering (Smashing Magazine) — *Practical patterns for building forms, buttons, and semantic navigation accessible to all users.*
+- **Form Design Patterns** by Adam Silver (Smashing Magazine) — *The definitive guide to designing robust, accessible, user-friendly HTML forms.*
+
+### Validation & Accessibility Tools
+- [W3C Nu HTML Checker (Markup Validation Service)](https://validator.w3.org/nu/) — Real-time validation tool for catching unclosed tags and invalid nesting.
+- [WebAIM Semantic Structure & Screen Reader Checklist](https://webaim.org/techniques/semanticstructure/) — Practical auditing guide for testing screen reader landmark navigation.

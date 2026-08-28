@@ -310,3 +310,21 @@ if (searchBox) {
    - Running `npx tsc --noEmit` returns **0 errors**.
 5. **Git Workflow:**
    - Developed on branch `feature/typescript-conversion`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [TypeScript Official Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) — The comprehensive guide to types, interfaces, generics, and narrowing.
+- [TypeScript TSConfig Reference](https://www.typescriptlang.org/tsconfig/) — Detailed documentation on all compiler flags including `strict`, `noImplicitAny`, and `exactOptionalPropertyTypes`.
+- [TypeScript Playground](https://www.typescriptlang.org/play) — Interactive compiler sandbox for inspecting emitted JavaScript and TypeScript compiler error codes.
+
+### Recommended Textbooks & Canonical Books
+- **Programming TypeScript: Making Your JavaScript Applications Scale** by Boris Cherny (O'Reilly) — *Deep dive into the type system, subtyping, generics, type-level programming, and error handling.*
+- **Effective TypeScript: 83 Specific Ways to Improve Your TypeScript (2nd Edition)** by Dan Vanderkam (O'Reilly) — *Practical, item-by-item engineering guidelines for writing robust, maintainable TypeScript.*
+- **Tackling TypeScript: Rapid Overview for JavaScript Programmers** by Dr. Axel Rauschmayer — *Clear, concise coverage of modern TypeScript syntax and type mechanics.*
+
+### Interactive Tutorials & Deep Dives
+- [Total TypeScript Tutorials by Matt Pocock](https://www.totaltypescript.com/tutorials) — Free interactive challenges on TypeScript generics, unions, and type transformations.
+- [TypeScript Deep Dive by Basarat Ali Syed](https://basarat.gitbook.io/typescript/) — Open-source guide exploring TypeScript AST, structural typing, and design patterns.

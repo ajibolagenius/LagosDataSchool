@@ -430,3 +430,21 @@ app.listen(PORT, () => {
    - 4-argument global error middleware returning formatted JSON errors.
 5. **Git Workflow:**
    - Repository `flowboard-api` initialized, committed with conventional commit messages, and pushed to GitHub.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [Node.js Official Documentation](https://nodejs.org/docs/latest/api/) — Complete API reference for the Node.js runtime, event loop, and core modules.
+- [Express.js Official Guide](https://expressjs.com/en/guide/routing.html) — Routing, middleware pipeline execution, and error handling architecture.
+- [RESTful API Design Standards (restfulapi.net)](https://restfulapi.net/) — Resource-oriented URI design, HTTP verb semantics, and status code specifications.
+
+### Recommended Textbooks & Canonical Books
+- **Node.js Design Patterns (3rd Edition)** by Mario Casciaro and Luciano Mammino (Packt) — *Chapters 1–4: The Node.js Platform, Module System, and Asynchronous Control Flow Patterns.*
+- **Build APIs You Won't Hate** by Phil Sturgeon — *Practical architectural guide for designing RESTful APIs, versioning, serialization, and status code best practices.*
+- **REST in Practice: Hypermedia and Systems Architecture** by Jim Webber, Savas Parastatidis, and Ian Robinson (O'Reilly) — *Deconstructing distributed system design using HTTP.*
+
+### Deep Dives & Architectural Guides
+- [Martin Fowler: Richardson Maturity Model](https://martinfowler.com/articles/richardsonMaturityModel.html) — The 4-level model evaluating RESTful API compliance.
+- [Node.js Event Loop, Timers, and process.nextTick()](https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick) — Official guide explaining libuv event loop phases.

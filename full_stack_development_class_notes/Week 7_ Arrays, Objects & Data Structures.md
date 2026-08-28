@@ -286,3 +286,21 @@ export function toggleFavoriteId(spotId: string): string[] {
    - On page refresh, favorited spots immediately render with active favorited styling.
 4. **Git Workflow:**
    - Developed on branch `feature/array-methods-favorites`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: Indexed Collections (Array)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array) — Specification and method index for `.map()`, `.filter()`, `.reduce()`, and immutable array utilities.
+- [MDN Web Docs: Object Reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) — Deep dive into object prototypes, property descriptors, and `Object.entries()`.
+- [MDN Web Docs: Web Storage API (`localStorage`)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API) — Client-side key-value persistence mechanisms and storage limits.
+
+### Recommended Textbooks & Canonical Books
+- **Composing Software: An Exploration of Functional Programming and Object Composition in JavaScript** by Eric Elliott — *Mastering pure functions, higher-order array methods, and immutability.*
+- **You Don't Know JS Yet: Objects & Classes** by Kyle Simpson — *Under-the-hood analysis of object property access, prototypes, and references.*
+- **Functional JavaScript** by Michael Fogus (O'Reilly) — *Practical patterns for manipulating collections, data pipelines, and currying in JavaScript.*
+
+### Deep Dives & Performance Guides
+- [JavaScript.info: Array Methods](https://javascript.info/array-methods) — Visual guide to mutating vs non-mutating array operations.
+- [MDN Web Docs: structuredClone()](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone) — The native web standard for deep copying complex nested object graphs.

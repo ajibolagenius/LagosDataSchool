@@ -337,3 +337,21 @@ const imageObserver = new IntersectionObserver(
    - Valid submissions assigned a unique ID via `crypto.randomUUID()`, appended to state, rendered immediately, and form reset.
 5. **Git Workflow:**
    - Developed on branch `feature/dom-events-delegation`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: Document Object Model (DOM)](https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model) — Complete reference for Node, Element, and Document APIs.
+- [MDN Web Docs: Introduction to Events & Bubbling](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Building_blocks/Events) — The definitive guide to the 3-phase DOM event flow (Capturing, Target, Bubbling).
+- [OWASP Cross-Site Scripting (XSS) Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html) — Security engineering rules for preventing script injection in DOM applications.
+- [MDN Web Docs: IntersectionObserver API](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API) — Asynchronous element visibility and viewport intersection detection.
+
+### Recommended Textbooks & Canonical Books
+- **DOM Enlightenment** by Cody Lindley (O'Reilly) — *Mastering the Document Object Model using native DOM methods without external libraries.* (Available free online at `domenlightenment.com`).
+- **Secrets of the JavaScript Ninja (2nd Edition)** by John Resig, Bear Bibeault, and Josip Maras (Manning) — *Chapters 12–14: DOM manipulation, Event loop mechanics, and Event plumbing.*
+
+### Deep Dives & Performance Guides
+- [CSS-Tricks: Debouncing and Throttling Explained Through Examples](https://css-tricks.com/debouncing-throttling-explained-examples/) — Interactive animations demonstrating event firing rates and timing closures.
+- [JavaScript.info: Bubbling and Capturing](https://javascript.info/bubbling-and-capturing) — Visual walkthroughs of event propagation and `event.stopPropagation()`.

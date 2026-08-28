@@ -422,3 +422,21 @@ export async function reorderLists(reorderedItems: { id: string; position: numbe
    - Implemented `GET /api/v1/boards/:id/full` returning the board along with all nested `lists` and their corresponding `tasks`.
 5. **Git Workflow:**
    - Developed on branch `feature/postgres-drizzle-orm`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [PostgreSQL 16 Official Documentation](https://www.postgresql.org/docs/current/index.html) — The comprehensive manual for SQL syntax, data types, indexing, and transactional isolation levels.
+- [Drizzle ORM Official Documentation](https://orm.drizzle.team/docs/overview) — Guide to schema declaration, migrations with Drizzle Kit, and relational queries.
+- [Neon Serverless Postgres Documentation](https://neon.tech/docs/introduction) — Serverless database branching, autoscaling, and connection pooling.
+
+### Recommended Textbooks & Canonical Books
+- **Designing Data-Intensive Applications** by Martin Kleppmann (O'Reilly) — *Chapters 2, 3, & 7: Data Models and Query Languages, Storage and Retrieval (B-Trees), and Transactions (ACID).*
+- **PostgreSQL: Up and Running (3rd Edition)** by Regina Obe and Leo Hsu (O'Reilly) — *Practical guide to administering, configuring, and optimizing PostgreSQL.*
+- **SQL Antipatterns: Avoiding the Pitfalls of Database Programming** by Bill Karwin (Pragmatic Bookshelf) — *Classic relational design pitfalls including Jaywalking, Entity-Attribute-Value, and Naive Trees.*
+
+### Deep Dives & Optimization Guides
+- [Use The Index, Luke! A Guide to Database Performance](https://use-the-index-luke.com/) — Markus Winand's definitive deep dive into B-Tree indexing, execution plans, and join algorithms.
+- [Drizzle ORM: Relational Queries Explained](https://orm.drizzle.team/docs/rqb) — Solving the N+1 problem with single-query join batching.

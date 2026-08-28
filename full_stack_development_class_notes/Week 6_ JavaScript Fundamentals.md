@@ -347,3 +347,21 @@ renderSpots(spots);
    - Tested filtering logic for `'all'`, `'food'`, `'study'`, `'nightlife'`, `'events'`.
 5. **Git Workflow:**
    - Developed on branch `feature/js-data-rendering`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [MDN Web Docs: JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) — Comprehensive guide to core language syntax, types, closures, and control flow.
+- [ECMA-262 ECMAScript Language Specification](https://tc39.es/ecma262/) — The official language specification maintained by the TC39 committee.
+- [MDN Web Docs: Equality Comparisons and Sameness](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness) — Exhaustive matrix of `===`, `==`, and `Object.is()`.
+
+### Recommended Textbooks & Canonical Books
+- **Eloquent JavaScript (4th Edition)** by Marijn Haverbeke (No Starch Press) — *Chapters 1–4: Values, Types, Operators, Program Structure, Functions, and Data Structures.* (Available free online at `eloquentjavascript.net`).
+- **You Don't Know JS Yet: Get Started & Scope and Closures** by Kyle Simpson — *Deep dive into the JavaScript compiler, Execution Contexts, Lexical Scope, and Hoisting/TDZ.*
+- **JavaScript: The Definitive Guide (7th Edition)** by David Flanagan (O'Reilly) — *The industry-standard reference manual for core JavaScript language semantics.*
+
+### Deep Dives & Interactive Tutorials
+- [JavaScript.info: The Modern JavaScript Tutorial (Part 1)](https://javascript.info/) — Clear visual explanations of data types, memory references, and functions.
+- [V8 Engine Blog](https://v8.dev/blog) — Insights into V8 execution contexts, Ignition bytecode, and TurboFan optimizations.

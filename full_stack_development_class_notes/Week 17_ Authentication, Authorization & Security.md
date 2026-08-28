@@ -381,3 +381,22 @@ app.use('/api/v1/auth', authLimiter);
    - Helmet security headers and `express-rate-limit` configured on authentication routes.
 5. **Git Workflow:**
    - Developed on branch `feature/auth-security`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [OWASP Top 10 Web Application Security Risks](https://owasp.org/www-project-top-ten/) — The authoritative security awareness standard for web developers.
+- [MDN Web Docs: Using HTTP Cookies & Security Flags](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies) — Explains `HttpOnly`, `Secure`, and `SameSite` flags.
+- [RFC 7519: JSON Web Token (JWT) Specification](https://datatracker.ietf.org/doc/html/rfc7519) — Standard specification for compact, URL-safe cryptographic claims.
+- [Bcrypt Key Derivation Algorithm (USENIX)](https://www.usenix.org/legacy/events/usenix99/provos/provos_html/) — Niels Provos and David Mazières' original academic paper on the Blowfish password hashing algorithm.
+
+### Recommended Textbooks & Canonical Books
+- **Web Application Security: Exploitation and Countermeasures for Modern Web Applications** by Andrew Hoffman (O'Reilly) — *Chapters 1–6: Cross-Site Scripting (XSS), Cross-Site Request Forgery (CSRF), and Insecure Direct Object References (IDOR).*
+- **OAuth 2 in Action** by Justin Richer and Antonio Sanso (Manning) — *Comprehensive guide to token-based authorization and resource servers.*
+- **The Web Application Hacker's Handbook (2nd Edition)** by Dafydd Stuttard and Marcus Pinto (Wiley) — *The classic textbook on web authentication bypasses, session flaws, and access control.*
+
+### Security Cheat Sheets & Verification Tools
+- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) — Gold-standard rules for password storage, salt rounds, and rate limiting.
+- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) — Stateful session issuance, expiration, and cookie transport security.

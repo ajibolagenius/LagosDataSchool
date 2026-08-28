@@ -333,3 +333,20 @@ export default App;
    - Zero ESLint or TypeScript compile errors.
 5. **Git Workflow:**
    - Developed on branch `feature/react-fundamentals`, merged via Pull Request, and pulled locally.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [React Official Documentation (react.dev)](https://react.dev/learn) — The official, interactive guide to thinking in React, describing the UI, and pure components.
+- [React GitHub Repository](https://github.com/facebook/react) — Source code repository for React core, Fiber reconciler, and JSX runtimes.
+- [Vite Official Guide: React Integration](https://vite.dev/guide/#trying-vite-online) — Fast refresh and JSX compilation configuration with `@vitejs/plugin-react`.
+
+### Recommended Textbooks & Canonical Books
+- **Learning React: Modern Patterns for Developing React Apps (2nd Edition)** by Alex Banks and Eve Porcello (O'Reilly) — *Chapters 1–5: Functional JavaScript, JSX compilation, and Pure Component Trees.*
+- **The Road to React** by Robin Wieruch — *Clear, pragmatic walkthrough of component composition, props, and unidirectional data flow.*
+
+### Deep Dives & Architectural Guides
+- [React Fiber Architecture by Andrew Clark](https://github.com/acdlite/react-fiber-architecture) — The foundational technical document explaining the internal mechanics of Fiber reconciliation and incremental rendering.
+- [Overreacted.io by Dan Abramov](https://overreacted.io/) — Foundational conceptual essays including "Writing Resilient Components" and "How Does React Tell a Class from a Function?".

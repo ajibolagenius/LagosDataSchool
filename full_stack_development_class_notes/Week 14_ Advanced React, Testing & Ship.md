@@ -345,3 +345,21 @@ npm run preview
    - Verified that refreshing on deep routes (e.g., `/favorites` or `/spots/terra-kulture`) does not throw 404 errors.
 4. **Git Workflow:**
    - Final frontend milestone tagged `v1.0.0-frontend`, merged into `main`, and pushed to GitHub.
+
+---
+
+## Recommended References & Deep-Dive Resources
+
+### Official Documentation & Standards
+- [React Official Documentation: Escape Hatches & Performance](https://react.dev/reference/react/useMemo) — Reference documentation for `useMemo`, `useCallback`, and `React.memo`.
+- [Vitest Official Documentation](https://vitest.dev/guide/) — Next-generation testing framework powered by Vite.
+- [Testing Library Official Documentation](https://testing-library.com/docs/react-testing-library/intro/) — Principles of testing user behavior rather than implementation details.
+- [Vercel Single Page Application Deployment Guide](https://vercel.com/docs/frameworks/vite) — Production SPA deployment and rewrite rule documentation.
+
+### Recommended Textbooks & Canonical Books
+- **Testing JavaScript Applications** by Lucas da Costa (Manning) — *Comprehensive guide to unit, integration, and end-to-end testing strategies in JavaScript.*
+- **React Design Patterns and Best Practices** by Carlos Santana Roldán (Packt) — *Performance tuning, suspense boundaries, and code-splitting architecture.*
+
+### Deep Dives & Performance Guides
+- [Kent C. Dodds: Common Mistakes with React Testing Library](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library) — Anti-patterns and best practices in component test assertions.
+- [web.dev: Optimize Largest Contentful Paint (LCP)](https://web.dev/articles/optimize-lcp) — Core Web Vitals optimization guide for code-splitting and asset loading.
