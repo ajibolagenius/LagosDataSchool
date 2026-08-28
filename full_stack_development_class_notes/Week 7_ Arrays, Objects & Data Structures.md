@@ -1,186 +1,288 @@
 # Week 7: Arrays, Objects & Data Structures
 
-Last week you rendered Lagos Spots' cards from a real array and filtered them by category using `.filter()`, treating it as a black box. This week you open that box: real array methods, cleaner ways to read and copy objects, and your first taste of data that survives a page refresh — a real "favorites" list, saved to the browser itself.
+In Week 6, you rendered Lagos Spots dynamically from a basic array. This week, you dive into the data manipulation mechanics that power production JavaScript and React applications: **Higher-Order Array Methods**, **Immutable State Updates**, **Object Destructuring & Spread Syntax**, and client-side data persistence via the **Web Storage API (`localStorage`)**.
 
 ---
 
-## Module 1: Array Methods on Real Data
+## Module 1: Higher-Order Array Methods & Functional Transformations
 
-### 1. `.map()`, `.filter()`, `.find()`
+### 1. The Core Terminology of Array Operations
 
-* **Lecture & Concepts:**
-    * `.map(fn)` transforms every item in an array into something new, returning a **new array** of the same length — exactly what `renderSpots` already does, turning spot objects into HTML strings.
-    * `.filter(fn)` returns a **new array** containing only the items where `fn` returns `true` — this is what powered last week's category filter.
-    * `.find(fn)` returns the **first single item** matching a condition, or `undefined` if none match — the right tool for "get me the one spot with this id," which you'll need the moment a spot has its own detail view.
-    * None of these three methods change the original array — they all return a new one. This matters: mutating arrays in place causes bugs that are hard to trace once more of the app depends on the same data.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Higher-Order Function (HOF)** | A function that accepts another function as an argument (a callback) or returns a function. | `.map()`, `.filter()`, and `.reduce()` are built-in array HOFs. |
+| **Pure Function** | A function that given the same arguments always returns the same output, producing **zero side effects** (does not mutate external variables or DOM). | The bedrock of predictable software and React state management. |
+| **Immutability** | Treating data structures as unchangeable once created. Instead of modifying an existing array/object, you return a brand new copy with changes applied. | Prevents subtle race conditions and unexpected state corruption across modules. |
+| **Shallow Copy** | A duplicate containing top-level primitive values, but retaining shared memory references to nested objects/arrays. | Created via spread `[...arr]` or `{ ...obj }`. |
+| **Deep Copy** | A duplicate where all levels of nested objects/arrays are cloned into completely new memory addresses. | Created natively via `structuredClone(obj)`. |
+
+---
+
+### 2. The Core Array Methods: Under the Hood
 
 ```mermaid
-flowchart LR
-    A["spots (full array)"] -->|".filter(category)"| B[matching spots]
-    B -->|".sort(by name)"| C[sorted spots]
-    C -->|".map(render)"| D[array of HTML strings]
-    D -->|".join('')"| E[one HTML string]
+flowchart TD
+    Original["Original Array: spots (4 items)<br/>[ {id: '1', food}, {id: '2', study}, {id: '3', food}, {id: '4', nightlife} ]"]
+    
+    Original -->|"1. .filter(s =&gt; s.category === 'food')"| Filtered["New Array (2 items)<br/>[ {id: '1', food}, {id: '3', food} ]"]
+    Filtered -->|"2. .toSorted((a, b) =&gt; a.name.localeCompare(b.name))"| Sorted["New Sorted Array (2 items)<br/>Alphabetical order"]
+    Sorted -->|"3. .map(renderCard)"| Mapped["New Array (2 HTML strings)<br/>[ '&lt;article&gt;...&lt;/article&gt;', '&lt;article&gt;...&lt;/article&gt;' ]"]
+    Mapped -->|"4. .join('')"| Joined["Single HTML String<br/>Passed to container.innerHTML"]
 ```
 
-* **In-Depth Example:**
-    ```ts
-    function findSpotById(spots, id) {
-      return spots.find((spot) => spot.id === id);
-    }
-    ```
-
-* **Class Exercise: Add `findSpotById`**
-    1. Give every object in your `spots` array a unique `id` field (e.g. `'terra-kulture'`).
-    2. Write `findSpotById(spots, id)` and confirm it in the console with a real, existing id and a fake one.
-
----
-
-### 2. `.sort()` and `.reduce()`
-
-* **Lecture & Concepts:**
-    * `.sort(compareFn)` reorders an array **in place** (the one common exception to "arrays methods don't mutate" — worth remembering exactly because it's the exception) based on a comparison function returning a negative, zero, or positive number.
-    * `.reduce(fn, initialValue)` folds an entire array down into a single value — a sum, a count, or a grouped object. It's the most flexible array method and often the hardest to read at first; a category count is a genuinely useful, concrete way to learn it.
-
-* **In-Depth Example (Real Category Counts):**
-    ```ts
-    function countByCategory(spots) {
-      return spots.reduce((counts, spot) => {
-        counts[spot.category] = (counts[spot.category] ?? 0) + 1;
-        return counts;
-      }, {});
-    }
-    // countByCategory(spots) -> { food: 3, study: 1, nightlife: 1 }
-    ```
-
-* **Class Exercise: Sort and Count**
-    1. Write a function `sortByName(spots)` that returns a **copy** of the array sorted alphabetically by name — use `[...spots].sort(...)` so the original `spots` array is never mutated.
-    2. Write `countByCategory` exactly as shown, and display each category filter button's count next to its label (e.g., "Food (3)").
+| Method | Return Value | Mutates Original Array? | Primary Use Case in Lagos Spots |
+| :--- | :--- | :--- | :--- |
+| **`.map(callback)`** | **New Array** (same length) | **No** | Transforming an array of Spot objects into an array of HTML card strings or React elements. |
+| **`.filter(callback)`** | **New Array** ($\le$ original length) | **No** | Filtering spots by selected category or search query string. |
+| **`.find(callback)`** | **First matching item** or `undefined` | **No** | Retrieving a single Spot object by its unique `id` when a user opens a detail modal. |
+| **`.some(callback)`** | **Boolean** (`true`/`false`) | **No** | Checking if at least one spot matches a condition (e.g., is any spot open after 10 PM?). |
+| **`.every(callback)`** | **Boolean** (`true`/`false`) | **No** | Validating that all items meet validation criteria. |
+| **`.sort(compareFn)`** | **Original Array** (reordered) | <span style="color:red; font-weight:bold;">YES (Mutates!)</span> | Sorting spots. Always sort a shallow copy: `[...spots].sort()` or use modern `spots.toSorted()`. |
+| **`.reduce(callback, init)`** | **Accumulator Value** (Any type) | **No** | Aggregating an array into a single summary value (e.g., category count dictionary, total cost). |
 
 ---
 
-## Module 2: Objects — Destructuring, Spread & Rest
+### 3. Under the Hood: Tracing `.reduce()`
 
-### 1. Destructuring
+`.reduce()` is the most versatile array method. It folds an array into any data type (an object, a number, a Map) by passing an accumulator from item to item.
 
-* **Lecture & Concepts:**
-    * Destructuring pulls named properties out of an object into their own variables in one line, instead of repeating `spot.name`, `spot.category`, etc.
+```ts
+interface SpotSummary {
+  category: string;
+}
 
-* **In-Depth Example:**
-    ```ts
-    function renderSpotCard(spot) {
-      const { name, category, area, description } = spot;
-      return `
-        <article class="spot-card" data-id="${spot.id}">
-          <h3>${name}</h3>
-          <p>${area} · ${category}</p>
-          <p>${description}</p>
-        </article>
-      `;
-    }
-    ```
+const sampleSpots: SpotSummary[] = [
+  { category: 'food' },
+  { category: 'study' },
+  { category: 'food' },
+  { category: 'events' },
+  { category: 'food' },
+];
 
-* **Class Exercise: Refactor `renderSpots`**
-    1. Extract a `renderSpotCard(spot)` function using destructuring, as shown.
-    2. Update `renderSpots` to call `spots.map(renderSpotCard).join('')` instead of building the markup inline.
+// Count spots per category
+const categoryCounts = sampleSpots.reduce<Record<string, number>>((accumulator, currentSpot) => {
+  const cat = currentSpot.category;
+  accumulator[cat] = (accumulator[cat] ?? 0) + 1;
+  return accumulator;
+}, {});
+```
 
----
-
-### 2. Spread, Rest & Immutable Updates
-
-* **Lecture & Concepts:**
-    * The **spread operator** (`...`) copies an object's or array's contents into a new one. It's the standard way to update an object *without mutating the original* — `{ ...spot, favorited: true }` creates a new object identical to `spot`, except `favorited` is now `true`.
-    * **Rest parameters** collect any remaining arguments into a real array: `function logAll(first, ...rest) { }`.
-    * `Object.keys()`, `Object.values()`, and `Object.entries()` turn an object into an array you can `.map()`/`.filter()` over — exactly what you need to render the category-count object from Module 1 as a list of buttons.
-
-* **In-Depth Example:**
-    ```ts
-    // Immutable update: mark one spot as favorited without touching the original array
-    function toggleFavorite(spots, id) {
-      return spots.map((spot) =>
-        spot.id === id ? { ...spot, favorited: !spot.favorited } : spot
-      );
-    }
-
-    // Turning the category-count object into real DOM content
-    const counts = countByCategory(spots);
-    Object.entries(counts).forEach(([category, count]) => {
-      console.log(`${category}: ${count} spot(s)`);
-    });
-    ```
-
-* **Class Exercise: Build `toggleFavorite`**
-    1. Write `toggleFavorite` exactly as shown — note it returns a **new** array, it doesn't mutate `spots`.
-    2. In the console, call it with a real id and confirm the returned array has that one spot's `favorited` flipped, while the original `spots` variable is untouched.
+#### Step-by-Step Execution Trace:
+| Iteration | `currentSpot.category` | `accumulator` State Entering Callback | Action Performed | Return Value to Next Iteration |
+| :--- | :--- | :--- | :--- | :--- |
+| **Initial** | — | `{}` | Initial value passed | `{}` |
+| **Step 1** | `'food'` | `{}` | `(undefined ?? 0) + 1 = 1` | `{ food: 1 }` |
+| **Step 2** | `'study'` | `{ food: 1 }` | `(undefined ?? 0) + 1 = 1` | `{ food: 1, study: 1 }` |
+| **Step 3** | `'food'` | `{ food: 1, study: 1 }` | `(1 ?? 0) + 1 = 2` | `{ food: 2, study: 1 }` |
+| **Step 4** | `'events'` | `{ food: 2, study: 1 }` | `(undefined ?? 0) + 1 = 1` | `{ food: 2, study: 1, events: 1 }` |
+| **Step 5** | `'food'` | `{ food: 2, study: 1, events: 1 }` | `(2 ?? 0) + 1 = 3` | `{ food: 3, study: 1, events: 1 }` |
 
 ---
 
-## Module 3: Nested Data & Persisting to `localStorage`
+## Module 2: Objects, Destructuring & Immutable Updates
 
-### 1. Nested Objects
+### 1. Destructuring Assignment (Objects & Arrays)
 
-* **Lecture & Concepts:**
-    * Real data is rarely flat. A spot might reasonably carry a nested `hours` object (`{ open: '09:00', close: '22:00' }`) or `location` (`{ lat, lng }`). Destructuring handles nesting too: `const { hours: { open, close } } = spot;`.
+Destructuring extracts properties into standalone variables with optional renaming and defaults:
 
-* **Class Exercise: Add Nested Data**
-    1. Add a nested `hours: { open, close }` object to each spot in your array.
-    2. Update `renderSpotCard` to display `${hours.open} – ${hours.close}` using nested destructuring.
+```ts
+interface Spot {
+  id: string;
+  name: string;
+  category: string;
+  area: string;
+  rating?: number;
+  contact?: { phone: string; email: string };
+}
+
+const spot: Spot = {
+  id: 'terra-kulture',
+  name: 'Terra Kulture',
+  category: 'food',
+  area: 'Victoria Island',
+  contact: { phone: '+234800000000', email: 'info@terrakulture.com' },
+};
+
+// 1. Basic destructuring with defaults and renaming
+const { name: spotTitle, area, rating = 4.5 } = spot;
+console.log(spotTitle); // 'Terra Kulture'
+console.log(rating);    // 4.5 (Default applied because rating was undefined)
+
+// 2. Nested destructuring
+const { contact: { email } = {} } = spot;
+console.log(email);     // 'info@terrakulture.com'
+
+// 3. Destructuring directly in function parameters (Standard React pattern)
+function renderSpotBadge({ category, area }: Spot): string {
+  return `<span class="badge">${area} · ${category}</span>`;
+}
+```
 
 ---
 
-### 2. JSON & `localStorage`
+### 2. Spread (`...`) vs Rest (`...`) Syntax
 
-* **Lecture & Concepts:**
-    * `localStorage` only stores **strings** — nothing else. `JSON.stringify(value)` converts a real JS value (an array, an object) into a string; `JSON.parse(string)` converts it back.
-    * `localStorage.setItem(key, value)` saves a string under a key; `localStorage.getItem(key)` reads it back (or returns `null` if nothing's been saved yet); `localStorage.removeItem(key)` deletes it.
+Although both use the three-dot `...` operator, their purpose depends entirely on context:
+
+```mermaid
+graph TD
+    ThreeDots["<b>The Three Dots: '...'</b>"]
+    ThreeDots -->|"In assignment / object literal<br/>(Unpacks / Copies)"| Spread["<b>Spread Syntax</b><br/>{ ...spot, verified: true }<br/>[ ...spots, newSpot ]"]
+    ThreeDots -->|"In function parameters<br/>(Collects remaining items)"| Rest["<b>Rest Parameter</b><br/>function logAll(first, ...others) { }"]
+```
+
+#### Immutable State Update Patterns:
+```ts
+// Scenario 1: Adding a new spot to an existing array (Without .push mutation)
+const updatedSpots = [...spots, newSpot];
+
+// Scenario 2: Deleting a spot by ID
+const remainingSpots = spots.filter((s) => s.id !== deletedSpotId);
+
+// Scenario 3: Updating a property on a single spot immutably
+const toggledFavorites = spots.map((s) => {
+  if (s.id === targetId) {
+    return { ...s, isFavorite: !s.isFavorite }; // New object with flipped boolean
+  }
+  return s; // Unchanged reference
+});
+```
+
+---
+
+### 3. Object Inspection Utilities
+
+```ts
+const categoryCounts = { food: 5, study: 2, nightlife: 4 };
+
+// 1. Object.keys() -> Array of keys: ['food', 'study', 'nightlife']
+const categories = Object.keys(categoryCounts);
+
+// 2. Object.values() -> Array of values: [5, 2, 4]
+const totalSpots = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
+
+// 3. Object.entries() -> Array of [key, value] tuples
+// Transforming dictionary into HTML category filter buttons:
+const filterButtonsHTML = Object.entries(categoryCounts)
+  .map(([cat, count]) => `
+    <button class="filter-btn" data-category="${cat}">
+      ${cat.toUpperCase()} (${count})
+    </button>
+  `)
+  .join('');
+```
+
+---
+
+## Module 3: Data Persistence with Web Storage
+
+### 1. Web Storage Architecture: `localStorage` vs `sessionStorage`
+
+| Feature | `localStorage` | `sessionStorage` | Cookies (`document.cookie`) |
+| :--- | :--- | :--- | :--- |
+| **Persistence Lifetime** | Survives browser restarts indefinitely until explicitly cleared by user/app. | Survives only as long as the specific browser tab is open. | Configurable via `Expires` / `Max-Age` headers. |
+| **Storage Capacity** | $\approx 5\text{MB}$ per origin. | $\approx 5\text{MB}$ per origin. | $\approx 4\text{KB}$ total. |
+| **Network Overhead** | Purely client-side; never sent over HTTP requests. | Purely client-side; never sent over HTTP requests. | Automatically attached to every HTTP request header to matching domain. |
+| **API Synchronicity** | Synchronous blocking I/O on the main thread. | Synchronous blocking I/O on the main thread. | Synchronous string parsing. |
+
+---
+
+### 2. Under the Hood: The Serialization Lifecycle
+
+`localStorage` can **only store UTF-16 string key-value pairs**. It cannot store live JavaScript Objects, Sets, or Functions directly. Attempting `localStorage.setItem('user', { id: 1 })` results in `"[object Object]"`.
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant App as main.ts
-    participant Storage as localStorage
-    User->>App: clicks the favorite button on a spot
-    App->>App: favoriteIds = toggle id in array
-    App->>Storage: setItem('favoriteIds', JSON.stringify(favoriteIds))
-    Note over App,Storage: Later — page reload
-    App->>Storage: getItem('favoriteIds')
-    Storage-->>App: JSON string or null
-    App->>App: JSON.parse(...) ?? []
-    App-->>User: favorited cards render as favorited, immediately
+    autonumber
+    actor User
+    participant App as JavaScript App (Memory)
+    participant Engine as JSON Engine
+    participant Disk as Browser Storage (Disk)
+
+    User->>App: Clicks "❤️ Favorite" on Bogobiri
+    App->>App: favorites = ['bogobiri', 'terra-kulture']
+    App->>Engine: JSON.stringify(favorites)
+    Engine-->>App: '["bogobiri","terra-kulture"]' (String)
+    App->>Disk: localStorage.setItem('ls_favorites', stringData)
+
+    Note over App,Disk: Page Reloaded / User Returns Next Day
+    App->>Disk: localStorage.getItem('ls_favorites')
+    Disk-->>App: '["bogobiri","terra-kulture"]' (or null if absent)
+    App->>Engine: JSON.parse(rawString)
+    Engine-->>App: ['bogobiri', 'terra-kulture'] (Live Array)
+    App->>App: Render cards with active ❤️ icons
 ```
 
-* **In-Depth Example:**
-    ```ts
-    const FAVORITES_KEY = 'lagos-spots:favorite-ids';
+---
 
-    function loadFavoriteIds() {
-      const raw = localStorage.getItem(FAVORITES_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }
+### 3. Production Storage Wrapper Pattern with Error Handling
 
-    function saveFavoriteIds(ids) {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
-    }
-    ```
+`JSON.parse()` throws a fatal `SyntaxError` if storage has been corrupted, and `localStorage.setItem()` throws a `QuotaExceededError` if the disk is full or storage is disabled by private browsing:
 
-* **Class Exercise: Persist Real Favorites**
-    1. Write `loadFavoriteIds` and `saveFavoriteIds` exactly as shown.
-    2. On page load, call `loadFavoriteIds()` and use the result to mark the matching cards as favorited when rendering.
-    3. When a favorite button is clicked, update the favorites array and immediately call `saveFavoriteIds`.
-    4. Refresh the page and confirm your favorited spots are still marked — this is real persistence, no backend involved yet.
+```ts
+// src/services/storage.ts
+
+const FAVORITES_KEY = 'lagos_spots_favorites_v1';
+
+export function getStoredFavoriteIds(): string[] {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('Failed to parse favorites from localStorage:', error);
+    return [];
+  }
+}
+
+export function setStoredFavoriteIds(ids: string[]): void {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+  } catch (error) {
+    console.error('Failed to save favorites to localStorage:', error);
+  }
+}
+
+export function toggleFavoriteId(spotId: string): string[] {
+  const currentFavorites = getStoredFavoriteIds();
+  const exists = currentFavorites.includes(spotId);
+  
+  const updatedFavorites = exists
+    ? currentFavorites.filter((id) => id !== spotId)
+    : [...currentFavorites, spotId];
+
+  setStoredFavoriteIds(updatedFavorites);
+  return updatedFavorites;
+}
+```
+
+---
+
+### 4. Common Pitfalls & How to Avoid Them
+
+| Pitfall | Consequence | Professional Fix |
+| :--- | :--- | :--- |
+| **Mutating arrays with `.sort()`** | `spots.sort()` mutates original dataset in place, causing unpredictable render state bugs. | Copy before sorting: `[...spots].sort()` or `spots.toSorted()`. |
+| **Shallow Copy of nested structures** | `{ ...spot }` copies the outer object, but `spot.location` still shares the same memory reference. Modifying `copy.location.lat` corrupts original! | Use `structuredClone(spot)` when deep cloning is required. |
+| **Unprotected `JSON.parse()`** | Malformed data or null input can crash the application with unhandled exceptions. | Always wrap `JSON.parse()` in a `try/catch` block with fallback values. |
 
 ---
 
 ### Week 7: Comprehensive Assignment
 
-**Objective:** Rebuild Lagos Spots' data layer on clean array/object fundamentals, with real favorites that survive a refresh.
+**Objective:** Upgrade Lagos Spots' data pipeline using pure array transformations, immutable updates, and a persistent client-side Favorites management system.
 
 **Requirements:**
-
-1. **Array Methods:** `findSpotById`, `sortByName`, and `countByCategory` implemented exactly as covered, none of them mutating the original `spots` array.
-2. **Destructuring:** `renderSpotCard` uses object destructuring for all fields it reads.
-3. **Immutability:** `toggleFavorite` returns a new array via `.map()` + spread — the original array is never mutated directly.
-4. **Nested Data:** Each spot has a nested `hours` object, correctly destructured and displayed.
-5. **Persistence:** Favorite spot IDs persist to `localStorage` as JSON and are restored correctly on page reload.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Add a "Sort by" dropdown (name vs. area) that re-renders the spots list using your `sortByName`-style function, generalized to accept the sort key as a parameter.
+1. **Array Utility Functions:**
+   - `findSpotById(spots, id)` implemented cleanly returning a single `Spot` or `undefined`.
+   - `sortSpots(spots, 'name' | 'area')` implemented returning a sorted clone without mutating original data.
+   - `getCategoryCounts(spots)` implemented via `.reduce()` returning a `{ category: count }` dictionary.
+2. **Category Chip Count Badges:**
+   - Category filter buttons rendered dynamically using `Object.entries(getCategoryCounts(spots))`, displaying live counts (e.g., "Food (3)", "Study (2)").
+3. **Persistent Favorites Feature:**
+   - Every spot card has a favorite toggle button (❤️ icon).
+   - Clicking favorite updates the list immutably and serializes the array of favorite IDs to `localStorage`.
+   - On page refresh, favorited spots immediately render with active favorited styling.
+4. **Git Workflow:**
+   - Developed on branch `feature/array-methods-favorites`, merged via Pull Request, and pulled locally.

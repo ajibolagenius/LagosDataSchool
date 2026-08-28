@@ -1,195 +1,312 @@
 # Week 10: TypeScript Fundamentals
 
-Your project has been sitting in `.ts` files since Week 5, but you've been writing plain JavaScript inside them — a small type annotation here and there, nothing enforced. This week that changes for real: every function, every piece of data, and especially that unpredictable Nominatim API response gets an actual type, checked by the compiler before your code ever runs.
+Until this point, you have written JavaScript with occasional type hints. This week, we transition to strict, professional **TypeScript**: understanding how the compiler enforces static guarantees, how the type system functions via **Structural Subtyping**, how to implement **Generics**, **Type Guards**, and **Discriminated Unions**, and how to ensure end-to-end type safety between third-party APIs and your application state.
 
 ---
 
-## Module 1: Why TypeScript, and the Basics
+## Module 1: The TypeScript Type System & Compilation Model
 
-### 1. What Static Types Actually Buy You
+### 1. The Core Terminology of TypeScript
 
-* **Lecture & Concepts:**
-    * JavaScript only tells you about a type mistake — passing a `string` where a function expects a `number`, say — **at runtime**, possibly in front of a real user. **TypeScript** adds a type-checking layer *on top of* JavaScript that catches these mistakes **while you're writing the code**, in your editor, before it ever runs.
-    * TypeScript is not a different language — it's JavaScript, plus optional type annotations, compiled down to plain JavaScript. Anything you already know about JS still applies exactly as-is.
-    * Most real, production frontend and backend teams today default to TypeScript — it's less a "nice extra" than the expected baseline in a professional codebase.
-
-### 2. Basic Types & Inference
-
-* **Lecture & Concepts:**
-    * TypeScript can often **infer** a type without you writing it: `const name = 'Terra Kulture';` is automatically known as `string`. You only need explicit annotations where TypeScript can't guess — usually function parameters.
-    * The types you'll use constantly: `string`, `number`, `boolean`, arrays (`string[]` or `Array<string>`), and object shapes.
-
-* **In-Depth Example:**
-    ```ts
-    const spotCount: number = 5;      // annotation not needed here — inferred already
-    const spotName = 'Terra Kulture'; // inferred as string, no annotation needed
-
-    function logSpot(name: string, area: string): void {
-      console.log(`${name} is in ${area}`);
-    }
-    ```
-
-### 3. `interface` for Real Object Shapes
-
-* **Lecture & Concepts:**
-    * An `interface` describes the *shape* an object must have — which properties, and what type each one is. Once defined, TypeScript checks every place you create or use that shape against it.
-    * `interface` and `type` overlap significantly for object shapes; the convention this course follows is `interface` for object shapes that might be extended, and `type` for unions, primitives, or combinations (covered next module).
-
-* **In-Depth Example (The Real `Spot` Shape):**
-    ```ts
-    interface Spot {
-      id: string;
-      name: string;
-      category: string;
-      area: string;
-      description: string;
-      favorited: boolean;
-      hours: {
-        open: string;
-        close: string;
-      };
-    }
-    ```
-
-* **Class Exercise: Define and Apply `Spot`**
-    1. Create `src/types.ts` and define the `Spot` interface exactly as shown.
-    2. In `main.ts`, annotate your existing `spots` array as `Spot[]`.
-    3. Deliberately misspell a property name in one spot object (e.g. `catgory` instead of `category`) and confirm TypeScript flags it immediately in your editor — this is the whole point.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Static Type Checking** | Verifying the correctness of types at **compile-time** (in your editor or during build) before running code. | Prevents `TypeError: Cannot read properties of undefined` in production. |
+| **Type Erasure** | The process where the TypeScript compiler (`tsc`) removes all interfaces, types, and generic annotations, emitting pure JavaScript. | **TypeScript types do not exist at runtime.** They carry zero runtime performance overhead. |
+| **Structural Subtyping ("Duck Typing")** | Type compatibility is based solely on the *shape and properties* of an object, not its explicit name or inheritance class. | If an object has all required properties of an interface, TypeScript treats it as valid. |
+| **Type Inference** | The compiler's ability to deduce data types automatically without explicit annotations (e.g., `const x = 5` is inferred as `number`). | Minimizes noisy boilerplate while preserving full type safety. |
+| **Union Type (`A | B`)** | A type representing a value that can be *either* type `A` or type `B`. | Models multi-state outcomes (e.g., `Spot | undefined`, `'food' | 'study'`). |
+| **Intersection Type (`A & B`)** | Combines multiple type definitions into one unified shape containing all properties of both. | Used for extending properties across data models. |
 
 ---
 
-## Module 2: Typing Functions & a Real, Messy API Response
+### 2. Under the Hood: The TypeScript Type Hierarchy
 
-### 1. Typed Function Parameters & Return Types
+Understanding TypeScript's type relationships prevents unsafe casting:
 
-* **Lecture & Concepts:**
-    * Once `Spot` exists, every function that touches spot data should say so explicitly — this is where TypeScript starts actually preventing real bugs, not just documenting intent.
+```mermaid
+graph TD
+    Top["<b>TOP TYPES</b><br/>• <code>unknown</code> (Safe: must narrow before use)<br/>• <code>any</code> (Unsafe: disables all checking)"]
+    
+    subgraph Concrete["Concrete Types"]
+        Obj["Objects, Arrays, Functions"]
+        Prim["Primitives: string, number, boolean, symbol, bigint"]
+        Nullish["null, undefined (Controlled by strictNullChecks)"]
+    end
 
-* **In-Depth Example:**
-    ```ts
-    function findSpotById(spots: Spot[], id: string): Spot | undefined {
-      return spots.find((spot) => spot.id === id);
-    }
+    subgraph Literal["Literal Types"]
+        Lit["'food' | 'study' | 42 | true"]
+    end
 
-    function toggleFavorite(spots: Spot[], id: string): Spot[] {
-      return spots.map((spot) =>
-        spot.id === id ? { ...spot, favorited: !spot.favorited } : spot
-      );
-    }
-    ```
-    * `Spot | undefined` is a **union type** — the return value is either a real `Spot`, or `undefined` if nothing matched. TypeScript now forces every caller to actually handle the "not found" case instead of assuming success.
+    Bottom["<b>BOTTOM TYPE</b><br/>• <code>never</code> (Empty set: impossible state)"]
 
-* **Class Exercise: Type Your Existing Functions**
-    1. Add parameter and return types to `findSpotById`, `toggleFavorite`, `sortByName`, and `countByCategory` from Week 7.
-    2. Wherever a function returns `Spot | undefined`, update its callers to check for `undefined` before using the result (an `if` check, or optional chaining).
+    Top --> Concrete
+    Concrete --> Literal
+    Literal --> Bottom
+```
 
----
-
-### 2. `unknown` vs. `any`, and Taming a Real External API
-
-* **Lecture & Concepts:**
-    * `any` turns off type checking entirely for that value — it's occasionally unavoidable, but overusing it defeats the purpose of using TypeScript at all.
-    * `unknown` is the safer alternative for genuinely unpredictable data (like a raw fetch response): TypeScript *forces* you to narrow or validate it before you're allowed to use it as anything specific.
-    * The right pattern for an external API: type the **raw** shape you actually receive separately from your **internal** `Spot` shape, and write one explicit function that converts between them — exactly what `toSpotFromResult` already does conceptually from Week 9, now made type-safe.
-
-* **In-Depth Example:**
-    ```ts
-    interface NominatimResult {
-      display_name: string;
-      lat: string;
-      lon: string;
-      name?: string;
-      address?: {
-        suburb?: string;
-        city?: string;
-      };
-    }
-
-    function toSpotFromResult(result: NominatimResult): Spot {
-      return {
-        id: crypto.randomUUID(),
-        name: result.name ?? result.display_name.split(',')[0],
-        area: result.address?.suburb ?? result.address?.city ?? 'Lagos',
-        category: 'unverified',
-        description: result.display_name,
-        favorited: false,
-        hours: { open: '00:00', close: '23:59' },
-      };
-    }
-    ```
-    * Notice every field on `NominatimResult` that isn't guaranteed is marked optional (`?`) — this is honest about a real, external API you don't control, rather than pretending it's always complete.
-
-* **Class Exercise: Type the Whole API Layer**
-    1. Define `NominatimResult` in `types.ts`, matching the real shape you inspected in Week 9's console output.
-    2. Type `searchLocations`'s return value as `Promise<NominatimResult[]>`.
-    3. Update `toSpotFromResult` to match the typed version above.
-
-### 3. A First Generic: A Typed `localStorage` Helper
-
-* **Lecture & Concepts:**
-    * A **generic** lets a function work with a type that's decided *when it's called*, rather than one fixed type. `<T>` is a placeholder the caller fills in.
-
-* **In-Depth Example:**
-    ```ts
-    function getStored<T>(key: string, fallback: T): T {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : fallback;
-    }
-
-    const favoriteIds = getStored<string[]>('lagos-spots:favorite-ids', []);
-    ```
-
-* **Class Exercise: Generalize Your Storage Helper**
-    1. Replace your Week 7 `loadFavoriteIds` with `getStored<string[]>(...)`, as shown.
-    2. Confirm your editor now knows `favoriteIds` is a real `string[]`, with autocomplete for array methods.
+- **`any`:** Completely turns off the type checker for that variable. Using `any` is a dangerous escape hatch that propagates through your codebase (**Any Contagion**).
+- **`unknown`:** The type-safe counterpart of `any`. Any value can be assigned to `unknown`, but TypeScript **forbids accessing any properties on it until you narrow its type** via `typeof`, `instanceof`, or custom type guards.
+- **`never`:** Represents values that can never occur (e.g., the return type of a function that always throws an error or an unreachable branch in exhaustive switch checks).
 
 ---
 
-## Module 3: Strict Mode & Finishing the Conversion
+### 3. `interface` vs. `type` Alias: When to Use Which
 
-### 1. `tsconfig.json` and `strict: true`
+```ts
+// 1. Interface: Best for extensible Object models and public API contracts
+interface BaseEntity {
+  id: string;
+  createdAt: Date;
+}
 
-* **Lecture & Concepts:**
-    * `strict: true` in `tsconfig.json` turns on a whole family of stricter checks at once — including `strictNullChecks`, which stops `null`/`undefined` from silently being treated as any other value. This is the setting that makes the `Spot | undefined` pattern from Module 2 actually enforced, rather than optional.
-    * Real production TypeScript codebases run with `strict: true` from day one — retrofitting it onto a large, loose codebase later is far more painful than starting strict.
+interface Spot extends BaseEntity {
+  name: string;
+  category: Category;
+  area: string;
+}
 
-* **Class Exercise: Turn On Strict Mode**
-    1. In `tsconfig.json`, set `"strict": true`.
-    2. Run `npx tsc --noEmit` (type-check without producing output files) and work through every error it reports, one at a time.
+// 2. Type Alias: Essential for Unions, Primitives, Tuples, and Computed Types
+type Category = 'food' | 'study' | 'nightlife' | 'events';
+type Coordinates = [latitude: number, longitude: number]; // Tuple
+type EntityId = string | number;                         // Union
 
-### 2. Typing DOM Elements & Event Handlers
-
-* **Lecture & Concepts:**
-    * `document.querySelector` returns a generic `Element | null` unless you tell it otherwise. Passing the real element type as a generic argument gives you the specific properties that type has (like `.value` on an input).
-
-* **In-Depth Example:**
-    ```ts
-    const searchInput = document.querySelector<HTMLInputElement>('#search-input');
-
-    searchInput?.addEventListener('input', (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      handleSearch(target.value);
-    });
-    ```
-
-* **Class Exercise: Finish the Conversion**
-    1. Add correct element-type generics to every `querySelector` call in the codebase.
-    2. Type every event handler's parameter, casting `event.target` to the correct element type where needed.
-    3. Re-run `npx tsc --noEmit` until it reports zero errors.
+// 3. Declaration Merging (Unique to Interface):
+// Multiple interfaces with the same name automatically merge into one!
+interface UserSettings {
+  theme: 'light' | 'dark';
+}
+interface UserSettings {
+  notifications: boolean;
+}
+// Resulting UserSettings has BOTH theme AND notifications.
+```
 
 ---
 
-### Week 10: Comprehensive Assignment
+## Module 2: Advanced Type Narrowing & Discriminated Unions
 
-**Objective:** *(Milestone: Lagos Spots v1 — complete.)* A fully typed, strict-mode-clean codebase — every function, every piece of data, the external API response, and every DOM interaction.
+### 1. Under the Hood: Discriminated (Tagged) Unions
+
+A **Discriminated Union** is a pattern that uses a common, literal property (the "discriminant" tag) to allow TypeScript to narrow complex union states with 100% mathematical certainty.
+
+```mermaid
+stateDiagram-v2
+    state "AsyncState<Spot[]>" as State {
+        [*] --> Idle: { status: 'idle' }
+        Idle --> Loading: { status: 'loading' }
+        Loading --> Success: { status: 'success', data: Spot[] }
+        Loading --> ErrorState: { status: 'error', error: string }
+    }
+```
+
+```ts
+// src/types.ts
+
+// 1. Define explicit state variants with a shared 'status' tag
+export type AsyncState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T; timestamp: number }
+  | { status: 'error'; errorMessage: string };
+
+// 2. Exhaustive state-handling UI renderer
+function renderStateUI(state: AsyncState<Spot[]>): void {
+  const container = document.getElementById('spots-list');
+  if (!container) return;
+
+  switch (state.status) {
+    case 'idle':
+      container.innerHTML = '<p>Enter a search query to find Lagos places.</p>';
+      break;
+
+    case 'loading':
+      container.innerHTML = '<div class="spinner">Searching live directory...</div>';
+      break;
+
+    case 'success':
+      // TypeScript GUARANTEES state.data exists here!
+      renderSpots(state.data);
+      break;
+
+    case 'error':
+      // TypeScript GUARANTEES state.errorMessage exists here!
+      container.innerHTML = `<div class="error-banner">${state.errorMessage}</div>`;
+      break;
+
+    default: {
+      // Exhaustive checking: If a new status is added to AsyncState,
+      // TypeScript will raise a compile-time error here!
+      const _exhaustiveCheck: never = state;
+      throw new Error(`Unhandled state: ${_exhaustiveCheck}`);
+    }
+  }
+}
+```
+
+---
+
+### 2. Custom Type Guards (`value is T`)
+
+When receiving un-typed data from `localStorage` or external JSON APIs, TypeScript cannot automatically know if the shape is valid. A **User-Defined Type Guard** bridges the gap between runtime verification and compile-time types:
+
+```ts
+// Runtime validation function that proves a variable conforms to Spot interface
+export function isSpot(value: unknown): value is Spot {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.area === 'string' &&
+    ['food', 'study', 'nightlife', 'events'].includes(candidate.category as string)
+  );
+}
+
+// Usage when reading from disk:
+export function loadSavedSpots(): Spot[] {
+  const raw = localStorage.getItem('custom_spots');
+  if (!raw) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    
+    // Filters array and narrows type to Spot[] simultaneously!
+    return parsed.filter(isSpot);
+  } catch {
+    return [];
+  }
+}
+```
+
+---
+
+## Module 3: Generics & Type-Safe Utility Helpers
+
+### 1. What are Generics?
+
+Generics provide **type variables** (`<T>`) that allow functions, classes, and interfaces to operate over multiple types while preserving strict type safety:
+
+```mermaid
+graph LR
+    Caller["Caller passes type:<br/><code>getStored&lt;Spot[]&gt;('key', [])</code>"] --> Function["Generic Function:<br/><code>function getStored&lt;T&gt;(key, fallback: T): T</code>"]
+    Function --> Result["Output typed strictly as:<br/><code>Spot[]</code> (Autocomplete enabled!)"]
+```
+
+```ts
+// src/storage.ts
+
+/**
+ * Generic localStorage retriever with type fallback
+ */
+export function getStored<T>(key: string, fallback: T): T {
+  try {
+    const item = localStorage.getItem(key);
+    if (item === null) return fallback;
+    return JSON.parse(item) as T;
+  } catch (err) {
+    console.warn(`Error reading key "${key}" from localStorage:`, err);
+    return fallback;
+  }
+}
+
+// 1. Reading favorite spot string IDs
+const favoriteIds = getStored<string[]>('ls_favorites', []);
+
+// 2. Reading theme setting
+const savedTheme = getStored<'light' | 'dark'>('ls_theme', 'light');
+
+// 3. Reading full spots cache
+const cachedSpots = getStored<Spot[]>('ls_cached_spots', []);
+```
+
+---
+
+## Module 4: Strict Configuration & DOM Casting
+
+### 1. Production `tsconfig.json` Configuration
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Strict Type-Checking Options */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+
+    /* Additional Lint Checks */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Module Resolution */
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}
+```
+
+---
+
+### 2. Typing DOM Queries & Event Handlers
+
+```ts
+// Explicit Element Generic on querySelector
+const spotForm = document.querySelector<HTMLFormElement>('#add-spot-form');
+const searchBox = document.querySelector<HTMLInputElement>('#search-input');
+
+if (searchBox) {
+  // InputEvent typing with type assertion
+  searchBox.addEventListener('input', (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    console.log(`Current query: ${input.value}`);
+  });
+}
+```
+
+---
+
+### Common Pitfalls & How to Avoid Them
+
+| Pitfall | Root Cause | Fix |
+| :--- | :--- | :--- |
+| **`as unknown as SomeType`** | Forcing unsafe type assertions to bypass compiler errors. | Use proper type guards (`isSpot`) or optional chaining instead of blind casting. |
+| **Using `any` for API responses** | Strips all autocomplete and lets property typos pass unnoticed. | Model the external schema explicitly with optional fields (`NominatimResult`). |
+| **Checking `instanceof Interface`** | Interfaces do not exist at runtime in JavaScript. | Use structural checks with custom type guards (`isSpot(obj)`). |
+
+---
+
+### Week 10: Comprehensive Assignment (Milestone: Lagos Spots v1 Complete)
+
+**Objective:** Achieve 100% strict-mode TypeScript type safety across the entire Lagos Spots codebase, eliminating all implicit and explicit `any` types, with full interface modeling, generics, and discriminated union UI state handling.
 
 **Requirements:**
-
-1. **Types Defined:** `Spot` and `NominatimResult` interfaces exist in `types.ts`, matching your real data shapes.
-2. **Typed Functions:** Every function touching spot data has explicit parameter and return types.
-3. **Safe API Handling:** `NominatimResult`'s uncertain fields are marked optional, and `toSpotFromResult` handles them with optional chaining/nullish coalescing.
-4. **Generics:** At least one generic function (the `getStored<T>` helper) is implemented and used.
-5. **Strict Mode:** `"strict": true` is set, and `npx tsc --noEmit` reports zero errors.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Add a `category` union type (`type Category = 'food' | 'study' | 'nightlife' | 'events' | 'unverified';`) and use it in place of `category: string` everywhere — then deliberately try to assign an invalid category string somewhere and confirm TypeScript rejects it.
+1. **Domain Modeling (`src/types.ts`):**
+   - Explicit `Spot` interface and `Category` union type (`'food' | 'study' | 'nightlife' | 'events'`).
+   - `NominatimResult` interface with optional fields representing raw API data.
+   - `AsyncState<T>` discriminated union for async lifecycle state management.
+2. **Generic Utilities:**
+   - Implemented type-safe generic `getStored<T>(key, fallback)` helper.
+3. **Runtime Type Guard:**
+   - Implemented `isSpot(value: unknown): value is Spot` protecting localStorage parsing.
+4. **Strict Compiler Compliance:**
+   - `tsconfig.json` configured with `"strict": true`.
+   - Running `npx tsc --noEmit` returns **0 errors**.
+5. **Git Workflow:**
+   - Developed on branch `feature/typescript-conversion`, merged via Pull Request, and pulled locally.

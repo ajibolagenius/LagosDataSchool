@@ -1,164 +1,321 @@
 # Week 9: Asynchronous JavaScript & Modern ES6+
 
-Every spot in Lagos Spots so far has been typed in by hand. This week that changes: your app reaches out to a real, free, public API — OpenStreetMap's **Nominatim** geocoding service — and searches actual locations around Lagos as the user types. This is also where your codebase stops being one file and becomes several real modules.
+Until now, Lagos Spots has operated entirely on local, hardcoded mock data. This week, your application connects to the live web: querying real geospatial coordinates and places using OpenStreetMap's **Nominatim Geocoding API**. To accomplish this reliably, you master the asynchronous execution model of JavaScript: **The Event Loop (Call Stack, Web APIs, Microtask vs. Macrotask Queues)**, **Promises**, **`async`/`await`**, **Race Condition Prevention with `AbortController`**, and modular code organization via **ES Modules**.
 
 ---
 
-## Module 1: The Event Loop & Promises
+## Module 1: The JavaScript Event Loop & Asynchronous Mechanics
 
-### 1. Why JavaScript Needs "Async" At All
+### 1. The Core Terminology of Asynchronous JavaScript
 
-* **Lecture & Concepts:**
-    * JavaScript runs on a **single thread** — one thing at a time. If fetching data from a server took, say, 800ms and ran *synchronously*, the entire page would freeze for 800ms: no clicks, no scrolling, nothing.
-    * The **event loop** is what lets JavaScript start a slow operation (like a network request), keep running other code immediately, and come back to handle the result once it's ready — without ever blocking the page.
-    * A **Promise** represents a value that isn't available yet, but will be — eventually either **fulfilled** (success) or **rejected** (failure).
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Single-Threaded** | JavaScript executes on a single main execution thread, processing one task at a time on its Call Stack. | Long-running synchronous calculations freeze the browser window (UI becomes unresponsive). |
+| **Non-Blocking I/O** | Delegating slow I/O operations (network requests, disk access, timers) to browser background threads (Web APIs) so the main thread remains responsive. | JavaScript registers a callback and continues executing subsequent lines immediately. |
+| **The Event Loop** | A continuous runtime coordination loop that monitors the Call Stack and task queues, pushing completed async callbacks onto the Call Stack when it becomes empty. | Dictates the exact deterministic order in which synchronous and asynchronous code executes. |
+| **Microtask Queue** | High-priority queue reserved for **Promise callbacks (`.then`, `.catch`, `await` resumes)** and `queueMicrotask()`. | Drained **completely to empty** before the browser renders or processes any macrotask. |
+| **Macrotask (Task) Queue** | Standard queue for **`setTimeout`**, **`setInterval`**, DOM events, and I/O callbacks. | The event loop processes **one macrotask at a time** before re-checking the microtask queue. |
+| **Promise** | An object representing the eventual completion (fulfillment) or failure (rejection) of an asynchronous operation. | Solves "Callback Hell" by providing composable, chainable async workflows. |
+
+---
+
+### 2. Under the Hood: The Event Loop & Execution Priority
 
 ```mermaid
-flowchart LR
-    P[Promise created] --> Pending[pending]
-    Pending -->|request succeeds| Fulfilled[fulfilled: has a value]
-    Pending -->|request fails| Rejected[rejected: has an error]
+flowchart TD
+    subgraph Synchronous["1. Main Thread"]
+        Stack["<b>Call Stack</b><br/>Executes active functions (LIFO)"]
+    end
+
+    subgraph BrowserCore["2. Background Threads"]
+        WebAPI["<b>Web APIs</b><br/>• fetch() HTTP requests<br/>• setTimeout() timers<br/>• DOM events"]
+    end
+
+    subgraph Queues["3. Task Queues"]
+        Micro["<b>Microtask Queue (VIP / High Priority)</b><br/>Promise .then / await resumes"]
+        Macro["<b>Macrotask Queue</b><br/>setTimeout / setInterval / UI events"]
+    end
+
+    Stack -->|"Offloads async task"| WebAPI
+    WebAPI -->|"Timer ready"| Macro
+    WebAPI -->|"Promise resolved"| Micro
+
+    subgraph Loop["4. The Event Loop"]
+        EL["Event Loop Engine"]
+    end
+
+    EL -->|"If Stack is Empty: DRAIN ALL"| Micro
+    Micro -->|"Push to Stack"| Stack
+    EL -->|"Then: Take ONE"| Macro
+    Macro -->|"Push to Stack"| Stack
 ```
 
-### 2. `async`/`await`
+#### Event Loop Execution Order Trace:
+```ts
+console.log('1. Synchronous Start');
 
-* **Lecture & Concepts:**
-    * `async`/`await` is syntax that lets asynchronous code *read* like synchronous code, while still not blocking the page. Any function marked `async` implicitly returns a Promise; `await` pauses *that function only* until the awaited Promise settles.
-    * `fetch(url)` is the browser's built-in function for making HTTP requests. It returns a Promise that resolves to a `Response` object — you then call `.json()` (itself also async) to read the body as parsed JSON.
+setTimeout(() => {
+  console.log('4. Macrotask (setTimeout)');
+}, 0);
 
-* **In-Depth Example (Calling a Real, Free, Keyless API):**
-    ```ts
-    async function searchLocations(query) {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}, Lagos, Nigeria`;
-      const response = await fetch(url, {
-        headers: { 'Accept-Language': 'en' },
-      });
-      const results = await response.json();
-      return results;
-    }
-    ```
-    * Nominatim is OpenStreetMap's free, public geocoding search — no API key or signup required, which makes it ideal for a learning project. `encodeURIComponent` safely escapes the search term for use inside a URL.
+Promise.resolve().then(() => {
+  console.log('3. Microtask (Promise)');
+});
 
-* **Class Exercise: Your First Real Network Call**
-    1. Write `searchLocations(query)` exactly as shown.
-    2. In the console, run `await searchLocations('Lekki')` (modern DevTools consoles support top-level `await`) and inspect the real array of results that comes back.
+console.log('2. Synchronous End');
+```
+
+**Console Output:**
+1. `1. Synchronous Start` (Stack)
+2. `2. Synchronous End` (Stack finishes synchronous script)
+3. `3. Microtask (Promise)` (Event loop prioritizes and drains Microtask Queue before Macrotask Queue)
+4. `4. Macrotask (setTimeout)` (Event loop takes next Macrotask)
 
 ---
 
-## Module 2: Error Handling, `Promise.all` & Real Modules
+## Module 2: The Fetch API, Promises & `async`/`await`
 
-### 1. `try`/`catch` With Async Code
+### 1. Under the Hood: The 3 States of a Promise
 
-* **Lecture & Concepts:**
-    * A network request can fail for real reasons — no internet, the API is down, a bad response. Wrapping `await` calls in `try`/`catch` lets you handle failure gracefully instead of leaving the user staring at a broken page.
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Promise Created (Request In-Flight)
+    Pending --> Fulfilled: resolve(response) -> .then() / await result
+    Pending --> Rejected: reject(error) -> .catch() / try-catch block
+```
 
-* **In-Depth Example (Loading, Error & Success States):**
-    ```ts
-    async function handleSearch(query) {
-      searchStatus.textContent = 'Searching...';
-
-      try {
-        const results = await searchLocations(query);
-        renderSearchResults(results);
-        searchStatus.textContent = results.length ? '' : 'No locations found.';
-      } catch (error) {
-        console.error('Location search failed:', error);
-        searchStatus.textContent = 'Something went wrong. Please try again.';
-      }
-    }
-    ```
-
-* **Class Exercise: Wire Up Real Search-as-You-Type**
-    1. Implement `handleSearch` as shown, and `renderSearchResults(results)` to display each result's `display_name`.
-    2. Attach an `input` event listener on the search field that calls `handleSearch(event.target.value)`.
-    3. Turn off your Wi-Fi briefly and confirm the `catch` block's message actually shows — don't just trust the happy path.
+1. **`Pending`:** Initial state; neither fulfilled nor rejected.
+2. **`Fulfilled`:** The operation completed successfully; produces a value.
+3. **`Rejected`:** The operation failed (e.g., DNS failure, network dropped); produces an error reason.
 
 ---
 
-### 2. `Promise.all` for Parallel Requests
+### 2. The Fetch API & The `response.ok` Quirk
 
-* **Lecture & Concepts:**
-    * Awaiting several independent requests one after another wastes time — each one waits for the previous to finish before starting. `Promise.all([...])` runs multiple Promises **concurrently** and resolves once *all* of them finish, returning their results in the same order.
+> [!WARNING]
+> **The Most Common `fetch` Trap:** `fetch()` does **NOT** reject a Promise when an HTTP server returns an error status like `404 Not Found` or `500 Internal Server Error`. A `fetch` Promise **only rejects on physical network failures** (e.g., disconnected internet, DNS failure, CORS block).
 
-* **In-Depth Example:**
-    ```ts
-    async function searchMultipleAreas(areas) {
-      const results = await Promise.all(areas.map((area) => searchLocations(area)));
-      return results.flat();
+To handle HTTP errors properly, you must explicitly check `response.ok` (which is `true` for HTTP status codes in the range `200`–`299`):
+
+```ts
+// src/api.ts
+
+export interface NominatimLocation {
+  place_id: number;
+  lat: string;
+  lon: string;
+  display_name: string;
+  name: string;
+  address?: {
+    suburb?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  };
+}
+
+export async function searchLocations(query: string, signal?: AbortSignal): Promise<NominatimLocation[]> {
+  const sanitizedQuery = encodeURIComponent(`${query.trim()}, Lagos, Nigeria`);
+  const endpoint = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${sanitizedQuery}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      signal, // Enables request cancellation
+      headers: {
+        'Accept-Language': 'en',
+        'User-Agent': 'LagosSpotsApp/1.0', // OpenStreetMap requires a descriptive User-Agent
+      },
+    });
+
+    // Explicitly check HTTP Status 200-299
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
     }
-    ```
 
-* **Class Exercise: Search Several Areas at Once**
-    1. Write `searchMultipleAreas(['Lekki', 'Yaba', 'Ikeja'])` as shown.
-    2. Time it (`console.time`/`console.timeEnd`) against calling `searchLocations` three times in sequence with three separate `await`s — confirm `Promise.all` is meaningfully faster.
+    const data: NominatimLocation[] = await response.json();
+    return data;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.log('Search request was aborted by user input.');
+      return [];
+    }
+    console.error('Failed to fetch locations from Nominatim:', error);
+    throw error; // Re-throw to let UI display error banner
+  }
+}
+```
 
 ---
 
-### 3. Real ES Modules
+### 3. Preventing Network Race Conditions with `AbortController`
 
-* **Lecture & Concepts:**
-    * A single `main.ts` file has grown unwieldy. **ES Modules** let you split code across files, explicitly `export`ing what other files need and `import`ing it where it's used — no global variables leaking between files.
+When a user types "L-E-K-K-I" into a search box, multiple network requests are dispatched in rapid succession. Due to network latency variability, **Request #1 ("L") may arrive *after* Request #5 ("Lekki")**, overwriting the latest search results with stale data:
 
-* **In-Depth Example:**
-    ```ts
-    // src/api.ts
-    export async function searchLocations(query) { /* ... */ }
-    ```
-    ```ts
-    // src/storage.ts
-    export function loadFavoriteIds() { /* ... */ }
-    export function saveFavoriteIds(ids) { /* ... */ }
-    ```
-    ```ts
-    // src/main.ts
-    import { searchLocations } from './api';
-    import { loadFavoriteIds, saveFavoriteIds } from './storage';
-    ```
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant App as Browser App
+    participant Net as Nominatim Server
 
-* **Class Exercise: Split the Codebase**
-    1. Create `src/api.ts` (Nominatim search), `src/storage.ts` (favorites persistence), `src/dom.ts` (rendering functions), and keep `src/main.ts` as the thin file that wires them together via event listeners.
-    2. Confirm the app still works identically after the split — a passing refactor changes nothing the user can see.
+    User->>App: Types "L"
+    App->>Net: Dispatches Request #1 ("L")
+    User->>App: Types "Lekki"
+    App->>Net: Dispatches Request #2 ("Lekki")
+    
+    Net-->>App: Request #2 Resolves in 150ms -> Shows "Lekki" results
+    Net-->>App: Request #1 Resolves in 800ms -> OVERWRITES UI with stale "L" results! (RACE CONDITION)
+```
+
+#### The Professional Solution: `AbortController`
+```ts
+// src/main.ts
+let activeAbortController: AbortController | null = null;
+
+async function handleLiveSearch(query: string) {
+  if (query.trim().length < 2) {
+    renderSpots(spots);
+    return;
+  }
+
+  // 1. Abort previous in-flight request if user is still typing
+  if (activeAbortController) {
+    activeAbortController.abort();
+  }
+  activeAbortController = new AbortController();
+
+  const statusEl = document.getElementById('search-status');
+  if (statusEl) statusEl.textContent = 'Searching Lagos locations...';
+
+  try {
+    const results = await searchLocations(query, activeAbortController.signal);
+    
+    if (results.length === 0) {
+      if (statusEl) statusEl.textContent = 'No matching places found.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = '';
+    renderApiSearchResults(results);
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      if (statusEl) statusEl.textContent = 'Network error. Please check your connection.';
+    }
+  }
+}
+```
 
 ---
 
-## Module 3: A Modern Syntax Sweep
+## Module 3: Parallel Execution & Modern ES6+ Features
 
-* **Lecture & Concepts:**
-    * **Optional chaining (`?.`):** safely reads a nested property that might not exist, short-circuiting to `undefined` instead of throwing — essential once you're reading fields from a real, external API response you don't fully control: `result?.address?.suburb`.
-    * **Nullish coalescing (`??`):** already used in Week 6/7 — pairs naturally with optional chaining: `result?.address?.suburb ?? 'Unknown area'`.
-    * **Default parameters:** `function search(query, limit = 5) { }` — avoids manual `if (limit === undefined) limit = 5;` boilerplate.
-    * **Destructuring in parameters:** `function renderResult({ display_name, lat, lon }) { }` reads straight from the object a caller passes in.
+### 1. Concurrency: `Promise.all` vs `Promise.allSettled`
 
-* **In-Depth Example (Real Nominatim Response Handling):**
-    ```ts
-    function toSpotFromResult(result) {
-      return {
-        id: crypto.randomUUID(),
-        name: result?.name ?? result.display_name.split(',')[0],
-        area: result?.address?.suburb ?? result?.address?.city ?? 'Lagos',
-        category: 'unverified',
-        description: result.display_name,
-      };
-    }
-    ```
+| Method | Execution Behavior | Failure Behavior |
+| :--- | :--- | :--- |
+| **`Promise.all([p1, p2, p3])`** | Runs all promises **concurrently**. | **Fail-Fast:** Rejects immediately if *any single* promise rejects, discarding other results. |
+| **`Promise.allSettled([p1, p2, p3])`** | Runs all promises **concurrently**. | **Never Rejects:** Waits for *all* promises to settle and returns an array of objects: `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`. |
 
-* **Class Exercise: Merge Real Search Results Into the App**
-    1. Write `toSpotFromResult` exactly as shown, using optional chaining and nullish coalescing to handle Nominatim's inconsistent `address` field.
-    2. When a user clicks a search result, convert it with `toSpotFromResult` and merge it into your existing curated `spots` array (dedupe by checking if a very similar name already exists), then re-render.
+```ts
+// Fetch multiple neighborhood spots concurrently in parallel:
+async function loadNeighborhoods(neighborhoods: string[]) {
+  console.time('Parallel Fetch');
+  
+  // All 3 network requests fire at the same instant
+  const results = await Promise.all(
+    neighborhoods.map((area) => searchLocations(area))
+  );
+  
+  console.timeEnd('Parallel Fetch'); // ~300ms total (instead of 300ms x 3 = 900ms sequential)
+  return results.flat();
+}
+```
+
+---
+
+### 2. Modern ES6+ Defensive Syntax
+
+#### Optional Chaining (`?.`) & Nullish Coalescing (`??`):
+When consuming unpredictable third-party API data, optional chaining stops fatal `TypeError: Cannot read properties of undefined` crashes:
+
+```ts
+// Safe extraction from dynamic API responses
+function transformApiResultToSpot(result: NominatimLocation): Spot {
+  const primaryName = result?.name || result?.display_name?.split(',')?.[0] || 'Unnamed Spot';
+  const neighborhood = result?.address?.suburb ?? result?.address?.city ?? 'Lagos';
+
+  return {
+    id: `osm-${result.place_id}`,
+    name: primaryName.trim(),
+    category: 'study', // Default categorization
+    area: neighborhood,
+    description: result.display_name,
+    imageUrl: '/assets/placeholder-spot.jpg',
+  };
+}
+```
+
+---
+
+## Module 4: Modular Architecture with ES Modules (ESM)
+
+Organize the application into single-responsibility ES Modules:
+
+```
+src/
+├── types.ts          # Shared TypeScript interfaces (Spot, Category)
+├── api.ts            # External Nominatim network calls & error handling
+├── storage.ts        # localStorage read/write with JSON validation
+├── dom.ts            # Programmatic DOM node generation & sanitization
+└── main.ts           # Orchestrator / Event Listeners & Application State
+```
+
+```ts
+// src/types.ts
+export interface Spot {
+  id: string;
+  name: string;
+  category: 'food' | 'study' | 'nightlife' | 'events';
+  area: string;
+  description: string;
+  imageUrl: string;
+  isFavorite?: boolean;
+}
+
+// src/main.ts
+import { Spot } from './types';
+import { searchLocations } from './api';
+import { getStoredFavoriteIds, toggleFavoriteId } from './storage';
+import { createSpotCardElement } from './dom';
+```
+
+---
+
+### Common Pitfalls & How to Avoid Them
+
+| Pitfall | Root Cause | Fix |
+| :--- | :--- | :--- |
+| **Assuming `fetch` rejects on 404/500** | `fetch` resolves on any completed HTTP response. | Always check `if (!response.ok) throw new Error(...)`. |
+| **Race conditions on rapid typing** | Slow earlier network requests resolving after faster newer requests. | Use `AbortController` to cancel previous requests. |
+| **Sequential `await` in loops** | `for (const x of arr) await fetch(x)` executes sequentially, multiplying latency. | Use `await Promise.all(arr.map(x => fetch(x)))`. |
+| **Uncaught rejection crashes** | Missing `try/catch` around `await` calls. | Always handle async errors with `try/catch` and update UI status indicators. |
 
 ---
 
 ### Week 9: Comprehensive Assignment
 
-**Objective:** Lagos Spots searches real, live locations via the Nominatim API, merged with your curated spots, with proper loading/error handling and a modular codebase.
+**Objective:** Wire Lagos Spots to the live OpenStreetMap Nominatim API, implementing asynchronous search-as-you-type with `AbortController` race condition protection, error states, and a clean ES Module file architecture.
 
 **Requirements:**
-
-1. **Real API Call:** `searchLocations(query)` correctly calls Nominatim and returns parsed JSON.
-2. **Async UI States:** Search shows a "Searching..." state, a "No locations found" state, and a real error state (tested by actually disabling your network).
-3. **Modules:** The codebase is split into at least `api.ts`, `storage.ts`, `dom.ts`, and `main.ts`, using real `import`/`export`.
-4. **Modern Syntax:** `toSpotFromResult` uses optional chaining and nullish coalescing to safely handle a real, occasionally-missing API field.
-5. **Merging:** Selecting a real search result adds it to the visible spots list without breaking existing favorites/filtering.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Add a simple debounce (delay firing `handleSearch` until the user stops typing for ~300ms) so you're not sending a real network request on every single keystroke — a genuine, common production concern when calling any third-party API from user input.
+1. **Live Geocoding Integration:**
+   - Real network calls to Nominatim using `fetch()`, with proper `encodeURIComponent` escaping and `Accept-Language` headers.
+   - Explicit `response.ok` status validation.
+2. **Race Condition Prevention & Debouncing:**
+   - Live search input wrapped with a 300ms debounce.
+   - Previous in-flight search requests aborted via `AbortController` when a new search begins.
+3. **Robust UI State Management:**
+   - Clear visual feedback for: "Searching places in Lagos...", "No locations found", and network failure error banners.
+4. **Modular Architecture:**
+   - Code cleanly separated into `src/types.ts`, `src/api.ts`, `src/storage.ts`, `src/dom.ts`, and `src/main.ts` using ES Module `import`/`export`.
+5. **Git Workflow:**
+   - Developed on branch `feature/async-api-modules`, merged via Pull Request, and pulled locally.

@@ -1,189 +1,349 @@
 # Week 6: JavaScript Fundamentals
 
-Lagos Spots has real structure and real style, but right now it's a static document — the dark-mode button from last week works only because of one small hand-written script, and everything else just sits there. This week you write your first substantial JavaScript: real variables, real logic, and the beginning of rendering the spots list from *data* instead of hardcoded HTML.
+Lagos Spots has semantic structure and Tailwind styling, but it remains a static document. This week marks your transition into **client-side programming**: understanding how the JavaScript engine executes code in memory, how variables and data types behave under the hood, how the scope chain resolves identifiers, and how to drive the UI dynamically from data structures rather than hardcoded HTML.
 
 ---
 
-## Module 1: Meeting JavaScript
+## Module 1: The JavaScript Runtime & Execution Model
 
-### 1. What JavaScript Actually Does
+### 1. The Core Terminology of JavaScript
 
-* **Lecture & Concepts:**
-    * If HTML is the page's content and CSS is its appearance, JavaScript is what senses what a visitor does and reacts to it: a click, a typed search term, a submitted form. Without it, a page can only ever show what was written into the HTML ahead of time.
-    * JavaScript runs **client-side** — the code is downloaded to the visitor's browser and executes right there, which is why it can react instantly without waiting on a server round-trip for every click.
-
-* **Class Exercise: Find the Gap**
-    1. Click your dark-mode toggle from Week 5 and confirm it still works — that's the only JS in the project so far.
-    2. Try clicking anywhere else on the page (a category tag, a card). Confirm nothing happens yet — that's exactly what this week changes.
-
----
-
-### 2. Linking JavaScript the Right Way
-
-* **Lecture & Concepts:**
-    * Same three options as CSS had: **external** (a separate `.ts`/`.js` file, linked — the standard), **internal** (a `<script>` block in the HTML — occasionally fine for a tiny prototype), and **inline** (`onclick="..."` directly on a tag — avoid entirely, it mixes structure and behavior).
-    * Historically, scripts were placed just before `</body>` so the HTML existed before JS looked for it. The modern approach is a `<script defer>` tag in `<head>`: the browser downloads it in the background while still parsing the HTML, and only runs it once parsing finishes — fast, and keeps every `<script>` tag in one predictable place.
-
-* **In-Depth Example:**
-    ```html
-    <head>
-      <script type="module" defer src="/src/main.ts"></script>
-    </head>
-    ```
-
-* **Class Exercise: Confirm the Link**
-    1. In `main.ts` (already scaffolded by Vite from Week 5), add `console.log('Lagos Spots main.ts loaded');` as the first line.
-    2. Refresh the page, open the console, and confirm the message appears exactly once.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **ECMAScript (ES)** | The standardized specification for scripting languages (ECMA-262) maintained by TC39. | JavaScript is the concrete implementation of the ECMAScript standard in browsers and Node.js. |
+| **JavaScript Engine (V8, JavaScriptCore, SpiderMonkey)** | The C++ program inside a browser that parses, compiles (JIT), and executes JavaScript code. | Chrome/Edge/Node.js use **V8**; Safari uses **JavaScriptCore**; Firefox uses **SpiderMonkey**. |
+| **Call Stack** | A Last-In, First-Out (LIFO) data structure that tracks active function calls and their execution contexts. | Primitives and stack frames are stored here; stack overflow occurs when recursive calls exceed maximum stack depth. |
+| **Memory Heap** | An unorganized region of memory allocated dynamically for reference types (Objects, Arrays, Functions). | Pointers/references live on the Call Stack, pointing to the heap addresses. |
+| **Execution Context** | An abstract environment containing the evaluated code, its lexical scope, variable bindings, and `this` reference. | A **Global Execution Context** is created on startup; each function call pushes a new **Function Execution Context**. |
+| **Temporal Dead Zone (TDZ)** | The period between entering a block scope and the physical declaration line of a `let` or `const` variable. | Accessing a variable in its TDZ throws a fatal `ReferenceError`. |
 
 ---
 
-### 3. The Console & Debugging
+### 2. Under the Hood: How the JavaScript Engine Runs Code
 
-* **Lecture & Concepts:**
-    * `console.log()` prints a value so you can see what your code is actually doing — you'll use it constantly.
-    * `console.warn()` and `console.error()` print in yellow/red respectively, useful for flagging real problems distinctly from routine debugging output.
-    * Beyond logging: **breakpoints**. In DevTools' **Sources** tab, click a line number to pause execution there the next time it runs — then hover any variable to inspect its live value, or step through line-by-line. This is the same skill you'll rely on to inspect a real API response in Week 9.
+When a script loads in the browser, the JavaScript engine processes it in two distinct phases:
 
-* **Class Exercise: Set a Real Breakpoint**
-    1. In `main.ts`, write a small function that logs a message when called, and call it once.
-    2. In the Sources tab, set a breakpoint on the `console.log` line inside that function, refresh, and confirm execution pauses there.
+```mermaid
+flowchart TD
+    Script["JavaScript File Loaded"] --> Phase1["<b>1. Creation Phase (Memory Allocation)</b><br/>• Allocates global/window object<br/>• Hoists function declarations into memory<br/>• Allocates var (initialized to undefined)<br/>• Allocates let / const (uninitialized in TDZ)"]
+    Phase1 --> Phase2["<b>2. Execution Phase (Line-by-Line Run)</b><br/>• Assigns values to variables<br/>• Executes statements & expressions<br/>• Pushes/pops function frames on Call Stack"]
+```
 
----
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Stack as Call Stack (LIFO)
+    participant Heap as Memory Heap
 
-### 4. Linting & Formatting
-
-* **Lecture & Concepts:**
-    * **ESLint** catches likely mistakes and enforces consistent patterns before they become bugs — a missed `===`, an unused variable. **Prettier** auto-formats code so nobody argues about spacing or quotes. Turning both on now, before much code exists, builds the habit early.
-
-* **Class Exercise: Turn On the Safety Net**
-    1. Install the ESLint and Prettier extensions in VS Code.
-    2. Enable "Format on Save" in VS Code's settings.
-    3. Deliberately write `if (1 == 1) { }` in `main.ts` and confirm ESLint flags the `==`.
-
----
-
-## Module 2: Variables, Types & Operators
-
-### 1. `let` and `const`
-
-* **Lecture & Concepts:**
-    * `const`: the default choice, used roughly 90% of the time. Must be assigned immediately, can never be reassigned.
-    * `let`: only when a value genuinely needs to change later — a running count, a toggle.
-    * `var` is not used in modern code — its scoping rules "leak" out of blocks in ways `let`/`const` were specifically designed to fix.
-
-* **In-Depth Example (Real Search-Bar Elements):**
-    ```ts
-    const searchInput = document.querySelector<HTMLInputElement>('#search-input');
-    const spotsList = document.querySelector<HTMLElement>('#spots-list');
-
-    let currentCategory = 'all'; // this will change as the user clicks filters
-    ```
-
-### 2. Primitive Types
-
-* **Lecture & Concepts:**
-    * JavaScript is dynamically typed — a variable's type is whatever value currently lives in it. The primitives to know: **string**, **number**, **boolean**, **undefined** (declared but never assigned — usually accidental), and **null** (deliberately empty, set on purpose by you).
-    * `typeof` inspects a value's type at runtime: `typeof currentCategory` → `"string"`.
-
-### 3. Template Literals
-
-* **Lecture & Concepts:**
-    * Joining strings with `+` is easy to get wrong (`"5" + 10` produces `"510"`, not `15` — a classic type-coercion trap). **Template literals**, written with backticks and `${...}`, embed variables directly and read far more clearly.
-
-* **In-Depth Example:**
-    ```ts
-    const name = 'Terra Kulture';
-    const category = 'food';
-
-    const label = `${name} — filed under ${category}`;
-    ```
-
-### 4. Operators
-
-* **Lecture & Concepts:**
-    * **Comparison:** `===` (strict equality — always use this) checks both value and type; `==` (loose equality — avoid) silently converts types first, hiding real bugs (`5 == "5"` is `true`).
-    * **Logical:** `&&` (both sides must be truthy), `||` (at least one side truthy), `!` (flips a boolean).
-    * **Nullish coalescing (`??`):** like `||`, but only falls back when the left side is specifically `null` or `undefined` — unlike `||`, it won't wrongly treat `0` or `""` as "missing." Useful for a real default: `const category = savedCategory ?? 'all';` correctly keeps a saved value of `''` if that were ever valid, where `||` would incorrectly discard it.
-
-* **Class Exercise: Practice on Real Values**
-    1. In the console, declare `const price = 0;` and log `price || 'Free'` vs. `price ?? 'Free'` — note they differ, and explain why in a comment.
-    2. Declare two variables holding the same number as a `string` and as a `number`, and confirm `===` correctly reports them as different while `==` does not.
+    Note over Stack: Global Execution Context Created
+    Stack->>Heap: Allocate object for "spots" data
+    Note over Stack: Push function frame: getVisibleSpots()
+    Note over Stack: Evaluate condition & filter array
+    Note over Stack: Pop function frame: getVisibleSpots()
+    Note over Stack: Push function frame: renderSpots()
+    Stack->>Stack: Update DOM innerHTML
+    Note over Stack: Pop function frame: renderSpots()
+```
 
 ---
 
-## Module 3: Control Flow
+### 3. Script Loading Strategies: `async` vs `defer` vs `type="module"`
 
-### 1. Conditionals
+Placing scripts improperly in `<head>` blocks the HTML tokenizer from building the DOM (**parser blocking**).
 
-* **Lecture & Concepts:**
-    * `if`/`else` branches based on a condition. The ternary operator (`condition ? valueIfTrue : valueIfFalse`) is a compact expression form, best for simple either/or values rather than multi-step logic. `switch` is useful when comparing one value against many fixed possibilities.
+```mermaid
+gantt
+    title Browser Script Loading Timeline
+    dateFormat X
+    axisFormat %s
 
-* **In-Depth Example (The Real Category Filter Decision):**
-    ```mermaid
-    flowchart TD
-        A[User clicks a category filter] --> B{category === 'all'?}
-        B -->|Yes| C[Show every spot]
-        B -->|No| D[Show only spots<br/>where spot.category === category]
-    ```
-    ```ts
-    function getVisibleSpots(spots: { category: string }[], category: string) {
-      if (category === 'all') {
-        return spots;
-      }
-      return spots.filter((spot) => spot.category === category);
-    }
-    ```
-    *(`.filter()` itself is a Week 7 topic — for now, focus on the `if`/`return` logic; treat the one-liner above as a preview.)*
+    section Regular Script in Head
+    HTML Parser         :done, 0, 3
+    Download Script     :crit, 3, 6
+    Execute Script      :crit, 6, 8
+    Resume HTML Parser  :done, 8, 12
 
-* **Class Exercise: Implement the Decision**
-    1. Write `getVisibleSpots` exactly as shown, treating `.filter()` as a black box for now.
-    2. Test it in the console with a small hardcoded array of `{ category: string }` objects and both `'all'` and a real category name.
+    section Script Async
+    HTML Parser         :done, 0, 6
+    Download Script     :active, 1, 4
+    Execute Script (Blocks Parser) :crit, 6, 8
+    Resume HTML Parser  :done, 8, 12
+
+    section Script Defer / type="module" (Recommended)
+    HTML Parser         :done, 0, 8
+    Download Script in Background :active, 1, 5
+    Execute Script (After DOM Ready) :crit, 8, 10
+```
+
+- `<script src="app.js">`: **Blocks HTML parsing** while downloading and executing.
+- `<script async src="app.js">`: Downloads in parallel with HTML parsing, but executes the moment download completes (may execute before DOM is fully constructed; unpredictable order).
+- `<script defer src="app.js">` / `<script type="module" src="main.ts">`: **Downloads in parallel without blocking parsing**, and executes strictly in document order *after* the DOM is fully constructed.
 
 ---
 
-## Module 4: Functions & Scope
+## Module 2: Variables, Types & Memory Allocation
 
-### 1. Three Ways to Write a Function
+### 1. `const` vs `let` vs `var` (Scope & Hoisting)
 
-* **Lecture & Concepts:**
-    * **Function declaration:** `function renderSpots(spots) { ... }` — hoisted (usable before its definition in the file).
-    * **Function expression:** `const renderSpots = function(spots) { ... };` — not hoisted.
-    * **Arrow function:** `const renderSpots = (spots) => { ... };` — the modern default for short, self-contained functions; also handles `this` differently, which will matter once you reach class-based patterns later in the course.
+| Keyword | Scope Level | Hoisted? | Reassignable? | Redeclarable? | Memory / TDZ Behavior |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`const`** | **Block `{ }`** | Yes (in TDZ) | **No** (Immutable binding) | **No** | Throws `ReferenceError` if accessed before declaration. Must be initialized immediately. |
+| **`let`** | **Block `{ }`** | Yes (in TDZ) | **Yes** | **No** | Throws `ReferenceError` if accessed before declaration. Ideal for counters/toggles. |
+| **`var`** | **Function / Global** | Yes (to `undefined`) | **Yes** | **Yes** | Leaks out of `if` blocks and `for` loops. Deprecated in modern engineering. |
 
-### 2. Block Scope
+#### Block Scope Demonstration:
+```ts
+if (true) {
+  var leakedVar = 'I leak into the outer scope!';
+  let scopedLet = 'I only exist within these curly braces!';
+  const scopedConst = 'I also only exist within these braces!';
+}
 
-* **Lecture & Concepts:**
-    * A variable declared with `let`/`const` only exists inside the nearest enclosing `{ }` block — its **scope**. A variable declared inside an `if` block or a function body isn't visible outside it. This is what makes `let`/`const` safer than `var`, which ignores block boundaries entirely.
+console.log(leakedVar);   // 'I leak into the outer scope!' (Pollutes scope!)
+// console.log(scopedLet);   // Uncaught ReferenceError: scopedLet is not defined
+// console.log(scopedConst); // Uncaught ReferenceError: scopedConst is not defined
+```
 
-* **In-Depth Example (The Real Render Function):**
-    ```ts
-    function renderSpots(spots: { name: string; category: string }[]) {
-      if (!spotsList) return;
+---
 
-      spotsList.innerHTML = spots
-        .map((spot) => `<article class="spot-card"><h3>${spot.name}</h3></article>`)
-        .join('');
-    }
-    ```
+### 2. Primitive Types vs. Reference Types: The Memory Model
 
-* **Class Exercise: Build `renderSpots`**
-    1. Write a real `spots` array of at least 5 objects (`{ name, category, area, description }`), matching your Week 2 cards' content.
-    2. Write `renderSpots(spots)` as shown, and call it once on page load so the grid renders from this array instead of hardcoded HTML.
-    3. Confirm the page still looks correct — the *content* now comes from JS, even though nothing about the visual result changed yet.
+JavaScript has 7 primitive types and 1 complex reference type:
+
+```mermaid
+graph TD
+    subgraph Stack["Call Stack (Fixed-Size Memory)"]
+        S1["spotName: 'Terra Kulture' (String)"]
+        S2["rating: 4.8 (Number)"]
+        S3["isOpen: true (Boolean)"]
+        S4["spotRef: &rarr; Pointer: 0x00A1F"]
+    end
+    subgraph Heap["Memory Heap (Dynamic Dynamic Memory)"]
+        H1["Address: 0x00A1F<br/>Object: {<br/>  name: 'Terra Kulture',<br/>  category: 'food',<br/>  tags: ['art', 'dining']<br/>}"]
+    end
+    S4 -.-> H1
+```
+
+1. **Primitives (Stored directly on Call Stack, passed by value):**
+   - `string`: Textual data (`'Lagos'`).
+   - `number`: 64-bit double precision floating point (`42`, `3.14`).
+   - `boolean`: `true` or `false`.
+   - `undefined`: Variable declared, but no value assigned yet (engine default).
+   - `null`: Intentional absence of any object value.
+   - `bigint`: Arbitrary precision integer (`9007199254740991n`).
+   - `symbol`: Unique, immutable identifier (`Symbol('id')`).
+2. **Reference Types (Stored on Heap, pointer on Call Stack, passed by reference):**
+   - `Object`, `Array`, `Function`, `Date`, `Map`, `Set`.
+
+---
+
+### 3. Under the Hood: Type Coercion & Equality
+
+#### Truthy vs. Falsy Values:
+JavaScript implicitly coerces values to booleans in conditionals (`if (val)`). There are exactly **8 falsy values**:
+- `false`, `0`, `-0`, `0n`, `""` (empty string), `null`, `undefined`, `NaN`.
+- *Everything else is truthy*, including `[]` (empty array), `{}` (empty object), `"0"`, and `"false"`.
+
+#### Strict Equality (`===`) vs Loose Equality (`==`):
+- `===` (**Strict Equality**): Compares **Value AND Type**. No type conversion occurs.
+- `==` (**Loose Equality**): Performs **Implicit Type Coercion** before comparing. Leads to erratic bugs:
+  - `0 == ""` $\to$ `true` (Both coerced to number `0`).
+  - `false == "0"` $\to$ `true`.
+  - `null == undefined` $\to$ `true`.
+  - `0 === ""` $\to$ `false` (Number vs String). Always use `===`.
+
+#### Logical OR (`||`) vs. Nullish Coalescing (`??`):
+- `||` returns the right-hand operand if the left is **any falsy value** (`false`, `0`, `""`, `null`, `undefined`).
+- `??` returns the right-hand operand **ONLY if the left is `null` or `undefined`**.
+
+```ts
+// Scenario: A free Lagos spot with ticket price of 0 Naira
+const admissionFee = 0;
+
+const fallbackWithOR = admissionFee || 1500; // WRONG! 0 is falsy, returns 1500
+const fallbackWithNullish = admissionFee ?? 1500; // CORRECT! 0 is valid, returns 0
+
+console.log(fallbackWithOR);      // 1500 (Incorrectly charges free spots)
+console.log(fallbackWithNullish); // 0    (Correctly preserves 0)
+```
+
+---
+
+## Module 3: Functions, Scope & Closures
+
+### 1. Function Types: Declarations vs Expressions vs Arrow Functions
+
+```ts
+// 1. Function Declaration (Hoisted to top of scope; has own 'this')
+function calculateDistance(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.hypot(x2 - x1, y2 - y1);
+}
+
+// 2. Function Expression (Not hoisted; stored in variable)
+const calculateDistanceExp = function(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.hypot(x2 - x1, y2 - y1);
+};
+
+// 3. Arrow Function (Concise syntax; lexically binds 'this'; modern standard)
+const calculateDistanceArrow = (x1: number, y1: number, x2: number, y2: number): number =>
+  Math.hypot(x2 - x1, y2 - y1);
+```
+
+---
+
+### 2. Under the Hood: Lexical Scope & The Scope Chain
+
+JavaScript uses **Lexical (Static) Scoping**: variable resolution is determined by the physical location of the code in the file, not where a function is called.
+
+```mermaid
+graph TD
+    GlobalScope["<b>Global Scope</b><br/>• spots: Array<br/>• activeCategory: 'food'"]
+    ParentScope["<b>Outer Function Scope:</b> filterPlaces()<br/>• query: 'Yaba'"]
+    InnerScope["<b>Inner Arrow Scope:</b> (spot) => ...<br/>• spot: Object"]
+
+    InnerScope -->|"1. Looks for identifier"| ParentScope
+    ParentScope -->|"2. Not found, traverses up"| GlobalScope
+```
+
+When a variable is evaluated:
+1. The engine checks the **Current Local Scope**.
+2. If not found, it traverses outward to the **Parent Lexical Scope**.
+3. It continues up the **Scope Chain** until it reaches the **Global Scope**.
+4. If still not found, it throws a `ReferenceError`.
+
+---
+
+## Module 4: Data-Driven UI Rendering
+
+### 1. The Spot Data Model & Rendering Logic
+
+Instead of hardcoding 50 cards in HTML, we store spots as an array of data objects and write a pure rendering function:
+
+```ts
+// src/main.ts
+
+// 1. Define the Spot data structure
+interface Spot {
+  id: string;
+  name: string;
+  category: 'food' | 'study' | 'nightlife' | 'events';
+  area: string;
+  description: string;
+  imageUrl: string;
+}
+
+// 2. Define the source dataset
+const spots: Spot[] = [
+  {
+    id: 'terra-kulture',
+    name: 'Terra Kulture',
+    category: 'food',
+    area: 'Victoria Island',
+    description: 'Art gallery, authentic Nigerian restaurant, and live theatre performance hall.',
+    imageUrl: '/assets/terra-kulture.jpg',
+  },
+  {
+    id: 'bogobiri',
+    name: 'Bogobiri House',
+    category: 'events',
+    area: 'Ikoyi',
+    description: 'Boutique hotel, African art gallery, open-mic poetry, and live Afrobeat music hub.',
+    imageUrl: '/assets/bogobiri.jpg',
+  },
+  {
+    id: 'workstation',
+    name: 'Workstation Bar Beach',
+    category: 'study',
+    area: 'Victoria Island',
+    description: 'High-speed internet co-working hub with uninterrupted power and coffee bar.',
+    imageUrl: '/assets/workstation.jpg',
+  },
+  {
+    id: 'hard-rock',
+    name: 'Hard Rock Cafe',
+    category: 'nightlife',
+    area: 'Oniru',
+    description: 'Beachfront American diner with rock memorabilia, live DJ sets, and cocktail lounge.',
+    imageUrl: '/assets/hardrock.jpg',
+  },
+];
+
+// 3. Pure filtering function
+function getVisibleSpots(allSpots: Spot[], selectedCategory: string): Spot[] {
+  if (selectedCategory === 'all') {
+    return allSpots;
+  }
+  return allSpots.filter((spot) => spot.category === selectedCategory);
+}
+
+// 4. DOM Rendering function
+function renderSpots(spotsToRender: Spot[]): void {
+  const container = document.getElementById('spots-list');
+  if (!container) return;
+
+  if (spotsToRender.length === 0) {
+    container.innerHTML = `
+      <div class="col-span-full py-12 text-center text-slate-500">
+        <p class="text-lg font-medium">No spots found in this category.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = spotsToRender
+    .map(
+      (spot) => `
+      <article class="flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all" id="${spot.id}">
+        <div class="flex justify-between items-start gap-2 mb-3">
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">${spot.name}</h3>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 capitalize">
+            ${spot.category}
+          </span>
+        </div>
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">📍 ${spot.area}</p>
+        <p class="text-sm text-slate-600 dark:text-slate-300 flex-grow mb-4">${spot.description}</p>
+        <button class="w-full py-2 px-4 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors">
+          View Details
+        </button>
+      </article>
+    `
+    )
+    .join('');
+}
+
+// Initial page render
+renderSpots(spots);
+```
+
+---
+
+### 2. Common Pitfalls & How to Avoid Them
+
+| Pitfall | Cause | Solution |
+| :--- | :--- | :--- |
+| `Uncaught TypeError: Cannot set properties of null (setting 'innerHTML')` | Script ran before the DOM element `#spots-list` existed in the DOM. | Use `<script type="module" defer>` in `<head>` and check `if (!container) return;`. |
+| `Uncaught ReferenceError: X is not defined` (TDZ violation) | Attempted to use a `let` or `const` variable before its line of declaration. | Declare variables at the top of their enclosing scope block. |
+| Coercion bugs with `==` | `0 == ""` evaluates to `true`. | Always configure ESLint rule `eqeqeq: ["error", "always"]` to enforce `===`. |
+| Floating point arithmetic inaccuracy | `0.1 + 0.2` equals `0.30000000000000004` due to IEEE-754 binary floating-point representation. | Store financial currency amounts in minor units (e.g., Kobo or Cents as integers) rather than fractional Naira/Dollars. |
 
 ---
 
 ### Week 6: Comprehensive Assignment
 
-**Objective:** Give Lagos Spots its first real logic: data-driven rendering and a working category filter.
+**Objective:** Transform Lagos Spots into a data-driven client-side application where the spot directory renders dynamically from structured data models, featuring clean scope boundaries and strict equality filtering.
 
 **Requirements:**
-
-1. **Linking:** `main.ts` linked with `<script type="module" defer>`; logs confirm it loads.
-2. **Data:** A real `spots` array of at least 5 objects with `name`, `category`, `area`, and `description`.
-3. **Rendering:** `renderSpots(spots)` builds the spots grid's HTML from that array — no hardcoded `.spot-card` markup left in `index.html`.
-4. **Filtering:** `getVisibleSpots(spots, category)` implements the decision-flow diagram above; clicking a category button (from your Week 2/5 tag chips, wired with a real click handler) calls `renderSpots(getVisibleSpots(spots, category))`.
-5. **Strict Equality:** `===` used throughout; no `==` anywhere in the file (confirm ESLint has nothing to flag).
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Build a small "Price Estimator" as standalone console practice, unconnected to the main app: given a `const basePrice = 0;`, log both `basePrice || 'Contact for pricing'` and `basePrice ?? 'Contact for pricing'`, and write a one-sentence comment explaining why a real free spot (price `0`) should use `??`, not `||`.
+1. **Module Linking & Tooling:**
+   - `main.ts` linked via `<script type="module" defer src="/src/main.ts">`.
+   - ESLint and Prettier enabled with zero warnings on `==` or unused variables.
+2. **Data Structure:**
+   - Defined `Spot` data model interface.
+   - Initialized `spots` array containing at least 5 complete spot objects across multiple Lagos areas (VI, Ikoyi, Yaba, Lekki).
+3. **Data-Driven Rendering:**
+   - `renderSpots(spots)` generates HTML dynamically via array transformation and DOM insertion.
+   - All hardcoded `.spot-card` HTML removed from `index.html`.
+4. **Pure Filtering Function:**
+   - Implemented `getVisibleSpots(allSpots, category)` with strict equality `===`.
+   - Tested filtering logic for `'all'`, `'food'`, `'study'`, `'nightlife'`, `'events'`.
+5. **Git Workflow:**
+   - Developed on branch `feature/js-data-rendering`, merged via Pull Request, and pulled locally.
