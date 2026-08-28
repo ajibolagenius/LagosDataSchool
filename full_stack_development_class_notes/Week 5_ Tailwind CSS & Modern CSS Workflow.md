@@ -1,167 +1,251 @@
 # Week 5: Tailwind CSS & Modern CSS Workflow
 
-You've now written enough hand-rolled CSS to understand exactly what a stylesheet does — the box model, layout, specificity, all of it earned the hard way. This week you meet the tool most production teams reach for instead: **Tailwind CSS**, a utility-first framework that replaces most hand-written CSS with small, composable class names. You'll also meet a real build tool, **Vite**, for the first time — the same tool you'll use for React starting in Part III.
+Having mastered the CSS Box Model, Specificity, Flexbox, and Grid by writing raw CSS, you now understand the underlying mechanisms that govern styling in web browsers. In this week, you transition to the industry-standard workflow used in modern full-stack development: **Tailwind CSS**, a utility-first CSS engine, powered by **Vite**, a blazing-fast modern build tool and dev server.
 
 ---
 
-## Module 1: Why Utility-First CSS, and Setting It Up
+## Module 1: Utility-First CSS & Modern Build Tooling
 
-### 1. What "Utility-First" Means
+### 1. The Core Terminology of Modern CSS Workflows
 
-* **Lecture & Concepts:**
-    * So far, styling a card meant writing a custom class (`.spot-card`) and a separate CSS rule for every property you wanted. **Utility-first CSS** flips this: instead of custom classes, you compose *many small, single-purpose classes* directly in your HTML — `p-4` (padding), `flex`, `rounded-lg`, `text-lg`.
-    * The tradeoff is real, not one-sided: you write less CSS and iterate faster, but your HTML carries more classes, and a team needs a shared vocabulary for what each utility does. Most production frontend teams today have settled on this tradeoff being worth it — which is why it's worth learning deliberately, not just as a shortcut.
-    * Everything you learned in Weeks 3–4 (box model, Flexbox, Grid, specificity) still applies — Tailwind's utilities are just a fast way to write those exact same CSS properties.
-
-* **Class Exercise: Compare Two Approaches**
-    1. Look back at your Week 3 `.spot-card` CSS rule (padding, border, background).
-    2. Predict what the equivalent Tailwind utility classes might look like, just from the property names you already know (you'll confirm this in the next section).
-
----
-
-### 2. Setting Up Tailwind with Vite
-
-* **Lecture & Concepts:**
-    * **Vite** is a modern frontend build tool: it serves your project with a fast local dev server and bundles it for production. It replaces manually double-clicking an HTML file.
-    * Tailwind needs a build step to scan your files and generate only the CSS you actually use — this is exactly what Vite provides.
-
-* **In-Depth Example (Terminal):**
-    ```bash
-    npm create vite@latest lagos-spots-web -- --template vanilla-ts
-    cd lagos-spots-web
-    npm install
-    npm install tailwindcss @tailwindcss/vite
-    ```
-    ```ts
-    // vite.config.ts
-    import { defineConfig } from 'vite'
-    import tailwindcss from '@tailwindcss/vite'
-
-    export default defineConfig({
-      plugins: [tailwindcss()],
-    })
-    ```
-    ```css
-    /* src/style.css */
-    @import "tailwindcss";
-    ```
-
-* **Class Exercise: Migrate the Project**
-    1. Scaffold a new Vite project as shown above (choosing the `vanilla-ts` template gets TypeScript scaffolding ready early, even though you won't write TS syntax until Week 10).
-    2. Move your existing `index.html`, `submit.html`, and `assets/` into this new project.
-    3. Replace your old `<link>` tags with the single Tailwind import shown above, and run `npm run dev` to confirm the dev server starts.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Utility-First CSS** | Composing small, single-purpose utility classes (`flex`, `p-4`, `text-center`, `rounded-lg`) directly in HTML markup rather than writing custom semantic CSS classes (`.spot-card`). | Eliminates the need to invent arbitrary class names and prevents bloated, ever-growing stylesheets. |
+| **Build Tool / Bundler (Vite)** | A developer tool that provides a rapid local development server (using native browser ES Modules) and bundles assets into optimized production code. | Replaces manual file opening with automated compilation, Hot Module Replacement (HMR), and minification. |
+| **Just-In-Time (JIT) Engine** | Tailwind's on-demand compiler that scans your template files for class names and generates *only the exact CSS rules you actually use*. | Results in ultra-lightweight production stylesheets (typically under $10\text{KB}$ gzipped), regardless of project size. |
+| **Variants / Modifiers** | Prefixes added to utility classes to apply styles conditionally: responsive (`md:`), state-based (`hover:`, `focus:`), or theme-based (`dark:`). | Compiles into standard CSS media queries or pseudo-class selectors. |
+| **Design Tokens** | Standardized, named design variables (colors, spacing scale, border radius, font sizes) defined in your theme configuration. | Enforces consistent design language across an engineering team. |
 
 ---
 
-## Module 2: Core Utilities
+### 2. Under the Hood: How Tailwind CSS & Vite Work Together
 
-### 1. Spacing, Flex & Grid Utilities
+When developing a modern web application, Vite and the Tailwind v4 compiler execute an automated pipeline:
 
-* **Lecture & Concepts:**
-    * Spacing utilities follow a consistent scale: `p-4` (padding), `m-4` (margin), `gap-4` — the number is a multiple of Tailwind's base spacing unit (`4` = 1rem).
-    * Layout utilities map directly onto what you already know: `flex`, `flex-col`, `justify-between`, `items-center`, `grid`, `grid-cols-3`.
+```mermaid
+flowchart TD
+    Source["HTML / TS / React Files<br/>&lt;div class='flex md:flex-row p-4'&gt;"] -->|"1. Fast Token Scanner"| JIT["Tailwind Compiler<br/>(Scans for class strings)"]
+    JIT -->|"2. CSS Generation"| AST["Abstract Syntax Tree (AST)<br/>Generates exact atomic CSS"]
+    AST -->|"3. Zero Unused CSS"| Bundle["Output CSS Bundle<br/>(p-4 { padding: 1rem; }<br/>@media (min-width: 768px) { ... })"]
+    Bundle -->|"4. Hot Module Replacement (HMR)"| Browser["Browser Screen<br/>(Instant live update in &lt;50ms)"]
+```
 
-* **In-Depth Example (The Real Spot Card, in Tailwind):**
-    ```html
-    <article class="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition">
-      <div class="flex justify-between items-start gap-2">
-        <h3 class="text-lg font-semibold">Terra Kulture</h3>
-        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">Art</span>
-      </div>
-      <p class="text-sm text-gray-600 mt-2">Art gallery, restaurant, and live music space.</p>
-    </article>
-    ```
-
-* **Class Exercise: Rebuild One Card**
-    1. Pick one existing `.spot-card` and rebuild it using only Tailwind utility classes, matching the example's shape.
-    2. Compare it side by side with an un-migrated card — confirm they look the same.
+1. **Native ES Module Dev Server:** When you run `npm run dev`, Vite starts a local HTTP server (`http://localhost:5173`). Unlike legacy bundlers (like Webpack) that bundle the entire application before serving, Vite serves files on-demand over native browser ES imports, achieving instant startup.
+2. **Static Source Scanning:** As you edit code, the Tailwind scanner tokenizes every word in your HTML/TS files.
+3. **Atomic CSS Output:** Tailwind generates the exact matching CSS rule in memory and injects it via **Hot Module Replacement (HMR)** into the running browser in under $50\text{ms}$ without reloading the page.
+4. **Production Tree-Shaking:** During `npm run build`, Tailwind ensures zero unused classes make it into the final `dist/` bundle.
 
 ---
 
-### 2. Responsive Prefixes & Dark Mode
+### 3. Setting Up Vite & Tailwind CSS v4
 
-* **Lecture & Concepts:**
-    * Every utility can be prefixed with a breakpoint to apply only from that width up — `md:flex-row` means "apply `flex-row` from the `md` breakpoint (768px) upward," directly replacing a hand-written `@media (min-width: 768px)` block.
-    * Tailwind's `dark:` variant applies a utility only when dark mode is active. With the `class` strategy, dark mode toggles by adding/removing a `dark` class on `<html>` — giving you full control via a button click, rather than only following the OS setting.
+```bash
+# 1. Scaffold a fresh Vite project with TypeScript support
+npm create vite@latest lagos-spots-web -- --template vanilla-ts
 
-* **In-Depth Example:**
-    ```html
-    <header class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 p-4 bg-white dark:bg-gray-900">
-      <h1 class="text-xl font-bold dark:text-white">Lagos Spots</h1>
-    </header>
-    ```
-    ```ts
-    // src/main.ts
-    document.getElementById('theme-toggle')?.addEventListener('click', () => {
-      document.documentElement.classList.toggle('dark');
-    });
-    ```
+# 2. Enter project directory and install dependencies
+cd lagos-spots-web
+npm install
 
-* **Class Exercise: Responsive Header + Dark Mode Toggle**
-    1. Rebuild the header with `flex-col md:flex-row` and the responsive utilities above.
-    2. Add a `<button id="theme-toggle">🌓</button>` to the header, and wire up the toggle script above in `main.ts`.
-    3. In `tailwind.config`, confirm (or set) the dark mode strategy to `class`, then test clicking the button.
+# 3. Install Tailwind CSS v4 and its official Vite plugin
+npm install tailwindcss @tailwindcss/vite
+```
 
----
+#### Configuring `vite.config.ts`:
+```ts
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
-## Module 3: Theming & Component Patterns
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+  ],
+});
+```
 
-### 1. Custom Theme Configuration
+#### Configuring the Entry Stylesheet (`src/style.css`):
+In Tailwind v4, setup requires a single CSS entry import:
+```css
+@import "tailwindcss";
 
-* **Lecture & Concepts:**
-    * Tailwind's default color palette is a solid start, but a real product usually wants its own named colors. A theme config lets you define e.g. a distinct color per spot category, then reuse a short, meaningful name everywhere instead of a raw hex code.
-
-* **In-Depth Example:**
-    ```css
-    /* src/style.css */
-    @import "tailwindcss";
-
-    @theme {
-      --color-food: #f5a623;
-      --color-study: #4a90d9;
-      --color-nightlife: #9b51e0;
-      --color-events: #27ae60;
-    }
-    ```
-    ```html
-    <span class="bg-food/10 text-food px-2 py-1 rounded-full text-xs">Food</span>
-    ```
-
-* **Class Exercise: Theme the Category Badges**
-    1. Add the four category colors to your theme config.
-    2. Update every category badge across your cards to use the matching themed color, based on that spot's real category.
+/* Define Custom Design Tokens via @theme */
+@theme {
+  --color-brand-primary: #ea580c; /* Orange-600 */
+  --color-brand-secondary: #0f172a; /* Slate-900 */
+  
+  --color-category-food: #f59e0b;
+  --color-category-study: #3b82f6;
+  --color-category-nightlife: #8b5cf6;
+  --color-category-events: #10b981;
+}
+```
 
 ---
 
-### 2. When to Extract a Repeated Pattern
+## Module 2: Core Utility Mastery
 
-* **Lecture & Concepts:**
-    * Repeating the same long string of utility classes across every card is normal and expected at this stage — real component extraction (a proper `SpotCard` you define once and reuse) is what React gives you starting in Part III. For now, if a class combination repeats *identically* many times, Tailwind's `@apply` can pull it into one custom class — but use this sparingly, since it re-introduces the specificity/naming tradeoffs utility classes were meant to avoid.
+### 1. Spacing, Typography & Layout Scale
 
-* **In-Depth Example:**
-    ```css
-    .badge {
-      @apply text-xs px-2 py-1 rounded-full;
-    }
-    ```
+Tailwind uses a numeric scale where **$1\text{ unit} = 0.25\text{rem} = 4\text{px}$**:
 
-* **Class Exercise: One Careful Extraction**
-    1. Extract just the shared, non-color part of your badge classes into a single `.badge` class using `@apply`.
-    2. Confirm every badge still looks correct, now combining `.badge` with its category-specific color utility.
+| Utility | CSS Property Output | Rendered Value |
+| :--- | :--- | :--- |
+| `p-2` / `m-2` | `padding: 0.5rem;` / `margin: 0.5rem;` | $8\text{px}$ |
+| `p-4` / `m-4` | `padding: 1rem;` / `margin: 1rem;` | $16\text{px}$ (1 base REM) |
+| `p-6` / `m-6` | `padding: 1.5rem;` / `margin: 1.5rem;` | $24\text{px}$ |
+| `p-8` / `m-8` | `padding: 2rem;` / `margin: 2rem;` | $32\text{px}$ |
+| `gap-4` | `gap: 1rem;` | $16\text{px}$ (Flex / Grid gap) |
+| `text-sm` / `text-lg` | `font-size: 0.875rem;` / `font-size: 1.125rem;` | $14\text{px}$ / $18\text{px}$ |
+| `rounded-lg` / `rounded-full` | `border-radius: 0.5rem;` / `border-radius: 9999px;` | $8\text{px}$ / Pill shape |
+
+---
+
+### 2. Under the Hood: How Responsive Prefixes Compile
+
+Tailwind is **mobile-first** by default. Unprefixed utilities apply to all screen sizes. Prefixed utilities (`sm:`, `md:`, `lg:`, `xl:`) apply from that breakpoint upward:
+
+| Tailwind Class | Breakpoint Query Generated Under the Hood |
+| :--- | :--- |
+| `flex-col md:flex-row` | ```css<br>.flex-col { flex-direction: column; }<br>@media (min-width: 768px) {<br>  .md\:flex-row { flex-direction: row; }<br>}<br>``` |
+| `w-full md:w-1/2 lg:w-1/3` | Mobile: $100\%$ width $\to$ Tablet: $50\%$ width $\to$ Desktop: $33.33\%$ width |
+
+---
+
+### 3. Rebuilding the Lagos Spots Card in Tailwind
+
+```html
+<article class="flex flex-col bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200">
+  <!-- Card Header -->
+  <div class="flex justify-between items-start gap-3 mb-3">
+    <h3 class="text-xl font-bold text-slate-900">Terra Kulture</h3>
+    <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+      Food & Culture
+    </span>
+  </div>
+
+  <!-- Image -->
+  <img 
+    src="/assets/terra-kulture.jpg" 
+    alt="Terra Kulture Restaurant and Art Gallery in Victoria Island" 
+    class="w-full h-48 object-cover rounded-lg mb-3"
+  >
+
+  <!-- Description -->
+  <p class="text-sm text-slate-600 flex-grow mb-4">
+    A renowned cultural center featuring authentic Nigerian delicacies, an art gallery, and live theatrical performances in Victoria Island.
+  </p>
+
+  <!-- Card Action -->
+  <a 
+    href="https://maps.google.com" 
+    target="_blank" 
+    rel="noopener noreferrer" 
+    class="inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
+  >
+    View on Google Maps &rarr;
+  </a>
+</article>
+```
+
+---
+
+## Module 3: Dark Mode & Dynamic Theming
+
+### 1. Under the Hood: Dark Mode Strategy
+
+Tailwind enables dark mode styling via the **`dark:` variant modifier**.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Button as #theme-toggle
+    participant DOM as document.documentElement (&lt;html&gt;)
+    participant Storage as localStorage
+
+    User->>Button: Clicks Theme Toggle Button
+    Button->>DOM: classList.toggle('dark')
+    alt Dark Class Present
+        DOM-->>Storage: localStorage.setItem('theme', 'dark')
+        Note over DOM: Elements with dark:bg-slate-900<br/>activate dark theme rules
+    else Dark Class Removed
+        DOM-->>Storage: localStorage.setItem('theme', 'light')
+        Note over DOM: Standard light theme rules apply
+    end
+```
+
+#### How the CSS Rule Compiles:
+When `class="dark"` is added to `<html>`:
+- `class="bg-white dark:bg-slate-900"` compiles to:
+  ```css
+  .bg-white { background-color: rgb(255 255 255); }
+  .dark .dark\:bg-slate-900 { background-color: rgb(15 23 42); }
+  ```
+
+---
+
+### 2. Preventing Flash of Unstyled Theme (FOUT)
+
+If a user prefers dark mode, reading `localStorage` inside a deferred script or after the page renders causes a jarring white flash (**FOUT**).
+
+To prevent this, place a synchronous inline script inside the `<head>` before the browser renders the `<body>`:
+
+```html
+<!-- index.html <head> -->
+<script>
+  // Prevent Flash of Unstyled Theme (FOUT)
+  if (
+    localStorage.getItem('theme') === 'dark' ||
+    (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  ) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+</script>
+```
+
+#### Wiring the Toggle Button in TypeScript (`src/main.ts`):
+```ts
+const themeToggleBtn = document.getElementById('theme-toggle');
+
+themeToggleBtn?.addEventListener('click', () => {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+});
+```
+
+---
+
+### 3. Common Pitfalls & How to Avoid Them
+
+| Pitfall | Why It Fails | The Correct Solution |
+| :--- | :--- | :--- |
+| **Dynamic class interpolation**<br>`class={`bg-${color}-500`}` | Tailwind scans source files with static regex *at build time*. It cannot execute JavaScript variables at runtime. | Use complete, unbroken class names or a lookup object map:<br>`const colorMap = { food: 'bg-amber-500', study: 'bg-blue-500' };`<br>`class={colorMap[category]}` |
+| **Overusing `@apply`** | Recreating `.card { @apply p-4 bg-white; }` defeats the purpose of utility-first CSS and resurrects specificity conflicts. | Use utility classes directly in markup. Reusable components belong in component frameworks (React in Week 11). |
+| **Missing root container constraints** | Omitting `max-w` containers causes layouts to stretch endlessly on wide displays. | Use `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`. |
 
 ---
 
 ### Week 5: Comprehensive Assignment
 
-**Objective:** A fully Tailwind-powered Lagos Spots, running on Vite, with a working dark mode and themed category badges.
+**Objective:** Migrate the entire Lagos Spots application to a modern Vite + Tailwind CSS v4 environment, featuring a responsive navigation bar, themed category badges, a responsive card grid, and a persistent dark mode toggle.
 
 **Requirements:**
-
-1. **Setup:** Project runs on Vite with Tailwind installed via `@tailwindcss/vite`; old hand-written CSS files removed.
-2. **Migration:** Every existing element (header, spot cards, form) is restyled using Tailwind utilities, visually matching or improving on the Week 3–4 version.
-3. **Responsive:** At least the header uses a responsive prefix (`md:`) to change layout at a real breakpoint.
-4. **Dark Mode:** A working toggle button that adds/removes the `dark` class on `<html>`, with `dark:` variants applied to at least the header and body background.
-5. **Theming:** A custom theme config with one named color per spot category, used consistently across all badges.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Persist the dark mode choice to `localStorage` so it survives a page refresh — you'll only need `localStorage.getItem`/`setItem` and a small check on page load, both of which you'll formally learn in Week 7, so treat this as a preview.
+1. **Tooling & Setup:**
+   - Scaffolded with `npm create vite@latest` (Vanilla TypeScript).
+   - Configured with `@tailwindcss/vite` plugin in `vite.config.ts`.
+   - Custom `@theme` tokens defined in `src/style.css`.
+2. **Complete Component Migration:**
+   - **Header:** Responsive flex layout (`flex-col md:flex-row md:justify-between`).
+   - **Spot Cards:** Rebuilt with Tailwind utilities (`border`, `rounded-xl`, `shadow-sm`, `hover:shadow-md`, `transition`).
+   - **Category Badges:** Themed with custom category colors (`bg-opacity` backgrounds and matching text colors).
+   - **Grid:** `#spots-list` styled with `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6`.
+   - **Form (`submit.html`):** Restyled with Tailwind form inputs (`rounded-lg`, `border-slate-300`, `focus:ring-2 focus:ring-orange-500`).
+3. **Dark Mode Implementation:**
+   - Theme toggle button in header.
+   - Zero-FOUT inline script in `<head>`.
+   - Full dark mode styling (`dark:bg-slate-900`, `dark:text-white`, `dark:border-slate-800`, `dark:bg-slate-800`).
+   - Theme preference persisted in `localStorage`.
+4. **Git Workflow:**
+   - Developed on branch `feature/tailwind-migration`, merged via Pull Request, and pulled locally.

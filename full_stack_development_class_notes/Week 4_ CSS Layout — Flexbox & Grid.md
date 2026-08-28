@@ -1,165 +1,280 @@
 # Week 4: CSS Layout — Flexbox & Grid
 
-Every element in Lagos Spots currently stacks straight down the page, one under the next — the browser's default. This week you take control of layout: a real navbar, a card whose internal pieces sit exactly where you want, and a responsive grid of spot cards that rearranges itself across screen sizes without a single extra line of JavaScript.
+In Week 3, you styled individual components in isolation. However, every element still stacks vertically in the browser's default document flow. This week, you take complete control of **multi-dimensional layout**: building a flexible navigation bar, aligning components precisely within cards using **Flexbox (1D Layout)**, creating an auto-responsive directory grid with **CSS Grid (2D Layout)**, and orchestrating responsive breakpoints with a **Mobile-First** architecture.
 
 ---
 
 ## Module 1: Flexbox — One-Dimensional Layout
 
-### 1. The Flex Container
+### 1. The Core Terminology of Flexbox
 
-* **Lecture & Concepts:**
-    * Flexbox lays out children of a container along a **single axis** — a row or a column. Turn any element into a flex container with `display: flex;`.
-    * Key container properties:
-        * `flex-direction`: `row` (default) or `column`.
-        * `justify-content`: alignment along the **main axis** (`flex-start`, `center`, `space-between`, `space-around`).
-        * `align-items`: alignment along the **cross axis** (`stretch` default, `center`, `flex-start`, `flex-end`).
-        * `gap`: consistent spacing between children — no more margin-hacking.
-
-* **In-Depth Example (The Real Navbar):**
-    ```css
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 24px;
-    }
-
-    header nav ul {
-      display: flex;
-      gap: 20px;
-      list-style: none;
-    }
-    ```
-
-* **Class Exercise: Lay Out the Header**
-    1. Make `header` a flex container with `justify-content: space-between` (logo on the left, nav on the right) and `align-items: center` (vertically centered).
-    2. Make the `nav ul` a flex row with `gap` between links, and remove its default bullet points with `list-style: none`.
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Flex Container** | The parent element with `display: flex` or `display: inline-flex`. | Establishes a new **Flex Formatting Context** for all direct children. |
+| **Flex Items** | The direct child elements inside a flex container. | Their geometry is calculated according to the Flexbox algorithm. |
+| **Main Axis** | The primary direction along which flex items are laid out. | Set by `flex-direction`: `row` (horizontal, default) or `column` (vertical). |
+| **Cross Axis** | The axis perpendicular to the main axis. | If main axis is horizontal (`row`), cross axis is vertical (`column`), and vice-versa. |
+| **`justify-content`** | Distributes items along the **Main Axis**. | Values: `flex-start`, `center`, `flex-end`, `space-between`, `space-around`, `space-evenly`. |
+| **`align-items`** | Aligns items along the **Cross Axis**. | Values: `stretch` (default), `center`, `flex-start`, `flex-end`, `baseline`. |
+| **`gap`** | Native spacing between flex items. | Replaces fragile `margin` hacks on child elements. |
 
 ---
 
-### 2. Flex Items Inside a Card
+### 2. Under the Hood: The Main Axis vs. Cross Axis System
 
-* **Lecture & Concepts:**
-    * Flexbox is just as useful *inside* a component as it is for page-level layout. A spot card's title and category chip sitting on the same row, with the chip pushed to the right, is a one-line flex rule — no floats, no absolute positioning.
+```mermaid
+flowchart TD
+    subgraph Row["flex-direction: row (Default)"]
+        direction LR
+        R_Main["Main Axis (Horizontal) &rarr; controlled by justify-content"]
+        R_Cross["Cross Axis (Vertical) &darr; controlled by align-items"]
+    end
 
-* **In-Depth Example:**
+    subgraph Col["flex-direction: column"]
+        direction TB
+        C_Main["Main Axis (Vertical) &darr; controlled by justify-content"]
+        C_Cross["Cross Axis (Horizontal) &rarr; controlled by align-items"]
+    end
+```
+
+> [!IMPORTANT]
+> When you change `flex-direction` from `row` to `column`, **the axes flip!** `justify-content` now controls vertical spacing, and `align-items` controls horizontal alignment.
+
+---
+
+### 3. Under the Hood: Flex Item Sizing Mathematics
+
+Every flex item has three properties controlling its size:
+$$\text{flex shorthand: } \mathbf{flex: <grow> <shrink> <basis>;}$$
+
+1. **`flex-basis`:** The initial size of the item before remaining space is distributed (e.g., `200px`, `20%`, or `auto`).
+2. **`flex-grow`:** Defines how much of the **positive remaining free space** in the container the item will absorb.
+   - If container has $600\text{px}$ width and two items have `flex-basis: 200px`, remaining space is $600 - 400 = 200\text{px}$.
+   - If item A has `flex-grow: 1` and item B has `flex-grow: 3`, total grow weight is $4$. Item A gets $\frac{1}{4} \times 200 = 50\text{px}$ (total $250\text{px}$); Item B gets $\frac{3}{4} \times 200 = 150\text{px}$ (total $350\text{px}$).
+3. **`flex-shrink`:** Defines how much an item will shrink when the total size of all items **exceeds** container size (negative free space).
+
+#### Common Flex Shorthands:
+- `flex: 0 1 auto;` (Default): Does not grow, shrinks if necessary, initial size based on content.
+- `flex: 1 1 0;` or `flex: 1;`: Grows and shrinks equally from a 0px baseline (creates perfectly equal-width columns regardless of content length).
+- `flex: 0 0 250px;`: Fixed-width sidebar (never grows, never shrinks).
+
+* **In-Depth Example: The Lagos Spots Navigation Bar**
     ```css
-    .spot-card__header {
+    /* Header Flex Container */
+    .header {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 8px;
+      justify-content: space-between; /* Brand left, nav links right */
+      align-items: center;            /* Perfectly centered vertically */
+      padding: 1rem 2rem;
+      background-color: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* Navigation Flex Container */
+    .nav__list {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;                   /* 24px clean gap between links */
+      list-style: none;
     }
     ```
-    ```html
-    <div class="spot-card__header">
-      <h3 class="spot-card__title">Terra Kulture</h3>
-      <span class="spot-card__badge">Art</span>
-    </div>
-    ```
-
-* **Class Exercise: Flex Inside the Card**
-    1. Wrap each card's title and its first category tag in a `<div class="spot-card__header">`.
-    2. Apply the flex rule above so the tag sits flush right against the title.
 
 ---
 
 ## Module 2: CSS Grid — Two-Dimensional Layout
 
-### 1. Grid Fundamentals
+### 1. The Core Terminology of CSS Grid
 
-* **Lecture & Concepts:**
-    * Where Flexbox handles one dimension well, **Grid** is built for two — rows *and* columns at once, which is exactly the shape of a card listing.
-    * `display: grid;` turns an element into a grid container. `grid-template-columns` defines the column tracks. `gap` spaces both rows and columns consistently.
-    * The real power move for a responsive card grid, with zero media queries: `grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));`. This tells the browser: "fit as many 240px-minimum columns as will comfortably fit, and stretch them evenly to fill the row."
+| Term | What It Actually Means | Technical Context |
+| :--- | :--- | :--- |
+| **Grid Container** | Element with `display: grid`. | Establishes a 2D coordinate grid formatting context. |
+| **Grid Track** | The space between two adjacent grid lines (a row or a column). | Defined by `grid-template-columns` and `grid-template-rows`. |
+| **Fractional Unit (`fr`)** | Represents a fraction of the available free space in the grid container. | `1fr 2fr` divides available space into $\frac{1}{3}$ and $\frac{2}{3}$. |
+| **`repeat()` Function** | Shorthand notation for repeating tracks. | `repeat(3, 1fr)` equals `1fr 1fr 1fr`. |
+| **`minmax(min, max)`** | Sets a size range for a track. | `minmax(250px, 1fr)` means "at least 250px wide, but grow to fill available space." |
+| **`auto-fit` vs `auto-fill`** | Auto-placement keywords that calculate track count dynamically. | Enables zero-media-query responsive card grids. |
+
+---
+
+### 2. Flexbox vs. CSS Grid: Architectural Decision Matrix
+
+```mermaid
+graph TD
+    Decision{What is the layout dimension?}
+    Decision -->|"1D: Single row OR single column<br/>(Navbar, Badge chips, Form field row)"| Flex["Use <b>FLEXBOX</b><br/><i>(Content-driven sizing)</i>"]
+    Decision -->|"2D: Rows AND columns simultaneously<br/>(Spot card directory, Dashboard, Page layout)"| Grid["Use <b>CSS GRID</b><br/><i>(Container-driven strict layout)</i>"]
+```
+
+---
+
+### 3. Under the Hood: The Auto-Responsive Grid Algorithm
+
+The industry-standard formula for responsive card grids without writing media queries is:
+```css
+#spots-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+```
 
 ```mermaid
 flowchart TD
-    Q{Laying out one row/column,<br/>or rows AND columns?} -->|One dimension:<br/>navbar, a card's internal row| FLEX[Use Flexbox]
-    Q -->|Two dimensions:<br/>the whole spots listing| GRID[Use Grid]
-    GRID --> AUTO["grid-template-columns:<br/>repeat(auto-fit, minmax(240px, 1fr))"]
+    W["Container Width Available"] --> Calc["Step 1: Calculate columns = floor(Width / 280px)"]
+    Calc --> Branch{"auto-fit vs auto-fill?"}
+    Branch -->|"auto-fit (Recommended)"| Fit["Collapses empty tracks to 0px.<br/>Existing cards expand with 1fr to fill the entire row."]
+    Branch -->|"auto-fill"| Fill["Preserves empty tracks.<br/>Cards stay at minmax size, leaving empty track slots on right."]
 ```
 
-* **In-Depth Example (The Real Spots Grid):**
-    ```css
-    #spots-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-    }
-    ```
-
-* **Class Exercise: Grid the Spots List**
-    1. Apply the grid rule above to `#spots-list`.
-    2. Resize your browser window and watch the number of columns change automatically — no media query written yet.
+#### How the Browser Calculates This:
+1. **On a Mobile Screen ($375\text{px}$):**
+   - $375\text{px}$ can only fit one $280\text{px}$ column.
+   - Result: 1 column stretching to fill the full width ($1\text{fr} = 375\text{px}$).
+2. **On a Tablet Screen ($768\text{px}$):**
+   - $768\text{px}$ can comfortably fit two $280\text{px}$ columns plus gap ($280 \times 2 + 24 = 584\text{px} \le 768\text{px}$).
+   - Result: 2 equal-width columns sharing available space.
+3. **On a Desktop Screen ($1200\text{px}$):**
+   - Fits four columns automatically ($280 \times 4 + \text{gaps} \le 1200\text{px}$).
+   - Result: 4 equal columns.
 
 ---
 
-### 2. When Grid Alone Isn't Enough
+## Module 3: Responsive Web Design & Mobile-First Architecture
 
-* **Lecture & Concepts:**
-    * `grid-template-areas` lets you name regions of a layout and place elements into them by name — most useful for full-page layouts (header/sidebar/main/footer) rather than repeating cards, so we won't force it onto the spots grid. Know the name; you'll reach for it on a future page layout that genuinely needs named regions.
+### 1. What is Mobile-First Design?
 
----
+**Mobile-First** is an architectural strategy where:
+1. **Base styles** (outside any media query) are written for the smallest screens (mobile viewport).
+2. **`@media (min-width: ...)`** media queries are introduced progressively to enhance the layout as screen real estate increases.
 
-## Module 3: Responsive Design
+```mermaid
+graph LR
+    Base["<b>Base Styles (Mobile)</b><br/>Single column, stacked elements, full width"] -->|"@media (min-width: 768px)"| Tablet["<b>Tablet Enhancement</b><br/>2-column layouts, expanded nav"]
+    Tablet -->|"@media (min-width: 1024px)"| Desktop["<b>Desktop Enhancement</b><br/>Multi-column grids, fixed sidebars, max-width constraints"]
+```
 
-### 1. Media Queries & Mobile-First
-
-* **Lecture & Concepts:**
-    * A **media query** applies CSS conditionally, based on screen characteristics: `@media (min-width: 768px) { ... }` applies only when the viewport is at least 768px wide.
-    * **Mobile-first** means writing your *default* (unqualified) CSS for the smallest screen, then using `min-width` media queries to add complexity as the screen grows — rather than the reverse. It's less CSS overall, and it matches how most real traffic arrives (phones first).
-
-* **In-Depth Example:**
-    ```css
-    /* Mobile default: search bar and nav stack vertically */
-    header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    /* From tablet width up: back to a horizontal row */
-    @media (min-width: 768px) {
-      header {
-        flex-direction: row;
-        align-items: center;
-      }
-    }
-    ```
-
-* **Class Exercise: Make the Header Responsive**
-    1. Set `header`'s *default* (mobile) layout to a vertical flex column.
-    2. Add a `min-width: 768px` media query switching it back to a horizontal row.
-    3. Test both states using DevTools' device toolbar (`Cmd/Ctrl+Shift+M`).
+#### Why Mobile-First Beats Desktop-First:
+- **Performance:** Mobile devices process less overriding CSS.
+- **Simplicity:** Adding rules with `min-width` is additive and clean; overriding complex desktop grids with `max-width` causes bloated CSS.
 
 ---
 
-### 2. Testing Across Real Breakpoints
+### 2. Standard Responsive Breakpoints
 
-* **Lecture & Concepts:**
-    * Three breakpoints cover the vast majority of real devices: **mobile** (< 768px, default styles), **tablet** (≥ 768px), and **desktop** (≥ 1200px, often just wider max-widths and more grid columns rather than a full relayout).
-    * `max-width` on a page's main content wrapper (e.g., `1100px`, centered with `margin: 0 auto`) keeps text lines from becoming absurdly wide on large monitors — a detail that's easy to forget once flex/grid make everything "just work" on medium screens.
+| Breakpoint Name | Target Devices | CSS Media Query | Typical Layout Strategy |
+| :--- | :--- | :--- | :--- |
+| **Base (Mobile)** | Phones ($320\text{px}$ – $767\text{px}$) | *(No query / Default)* | Stacked vertical flow, hamburger menu, $100\%$ width cards. |
+| **Medium (`md`)** | Tablets ($768\text{px}$ – $1023\text{px}$) | `@media (min-width: 768px)` | Horizontal navigation, 2-column forms/cards. |
+| **Large (`lg`)** | Laptops / Desktops ($\ge 1024\text{px}$) | `@media (min-width: 1024px)` | Max-width content wrapper, multi-column directory grid. |
 
-* **Class Exercise: Full Responsive Pass**
-    1. Add a `.page-wrapper` around `<main>`'s content with `max-width: 1100px; margin: 0 auto;`.
-    2. Add a `min-width: 1200px` media query bumping the spots grid's `minmax()` first value up slightly, so cards don't stretch too wide on large screens.
-    3. Test the whole page at mobile, tablet, and desktop widths in DevTools.
+---
+
+### 3. Concrete Implementation: Lagos Spots Complete Layout
+
+```css
+/* ==========================================================================
+   Page Layout & Wrapper Constraints
+   ========================================================================== */
+.page-container {
+  width: 100%;
+  max-width: 1200px; /* Prevents line lengths from stretching on ultrawide monitors */
+  margin: 0 auto;    /* Centers container horizontally */
+  padding: 0 1.25rem;
+}
+
+/* ==========================================================================
+   Responsive Header (Mobile-First)
+   ========================================================================== */
+.header {
+  display: flex;
+  flex-direction: column; /* Stack logo and nav vertically on mobile */
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.nav__list {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+}
+
+/* Tablet & Desktop Header Enhancement */
+@media (min-width: 768px) {
+  .header {
+    flex-direction: row;      /* Switch to single row */
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+/* ==========================================================================
+   Spots Directory Grid
+   ========================================================================== */
+.spots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* ==========================================================================
+   Internal Card Flexbox Alignment
+   ========================================================================== */
+.spot-card {
+  display: flex;
+  flex-direction: column; /* Allows footer/button to pin to bottom */
+  height: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.spot-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.spot-card__description {
+  flex-grow: 1; /* Pushes the card link/action to the very bottom */
+  margin-bottom: 1rem;
+}
+```
+
+---
+
+### 4. Common Pitfalls & How to Avoid Them
+
+| Pitfall | Cause | Fix |
+| :--- | :--- | :--- |
+| **Flex child text overflowing** | Default `min-width: auto` on flex items prevents text truncation from working. | Add `min-width: 0;` to the flex child element. |
+| **Horizontal page scrolling on mobile** | Fixed pixel widths (e.g., `width: 500px`) overflowing mobile viewports. | Use fluid widths (`width: 100%`, `max-width: 500px`). |
+| **Desktop-first media query tangle** | Using `@media (max-width: ...)` creates messy specificity overrides. | Refactor to mobile-first using only `@media (min-width: ...)`. |
+| **Using Flexbox for 2D grids** | Relying on `flex-wrap` and manual percentage widths (`width: 33.33%`) leads to uneven trailing items. | Use CSS Grid with `repeat(auto-fit, minmax(..., 1fr))`. |
 
 ---
 
 ### Week 4: Comprehensive Assignment
 
-**Objective:** A fully laid-out, responsive Lagos Spots homepage using Flexbox for one-dimensional layout and Grid for the spots listing.
+**Objective:** Transform Lagos Spots into a fully responsive, multi-page application utilizing Flexbox for 1D component alignment, CSS Grid for the directory listing, and Mobile-First responsive media queries.
 
 **Requirements:**
-
-1. **Flexbox:** The header (logo + nav) and each card's internal title/badge row both use Flexbox correctly.
-2. **Grid:** `#spots-list` is a responsive grid using `auto-fit`/`minmax`, requiring zero manual breakpoint columns.
-3. **Responsive:** A mobile-first media query strategy with at least one real breakpoint change (e.g., the header's `flex-direction`).
-4. **Content Width:** A `.page-wrapper` with a sensible `max-width`, centered on the page.
-5. **Verification:** Confirm the page looks correct at three real widths (mobile, tablet, desktop) using DevTools.
-6. **Git:** Committed and pushed via the branch → PR → merge workflow.
-
-**Bonus Challenge:** Lay out the "Add a Spot" form's fields as a two-column grid on tablet/desktop widths (`grid-template-columns: 1fr 1fr` inside a `min-width` media query), collapsing back to a single column on mobile.
+1. **Navigation & Header:**
+   - Mobile: Logo and navigation stacked vertically with clean spacing.
+   - Tablet/Desktop (`min-width: 768px`): Header switches to a horizontal flex row with space-between distribution.
+2. **Spots Directory Grid:**
+   - `#spots-list` rendered as a responsive CSS Grid using `repeat(auto-fit, minmax(280px, 1fr))`.
+   - Grid items align cleanly and stretch equally across all screen sizes without horizontal scrolling.
+3. **Internal Card Flex Layout:**
+   - Card headers align place titles and category badges on a single flex row.
+   - Card description uses `flex-grow: 1` inside a column flexbox to ensure all card buttons/links align consistently at the bottom of cards in the same row.
+4. **Form Grid (`submit.html`):**
+   - Form fields laid out in a 2-column CSS grid on tablet/desktop, gracefully collapsing to a single column on mobile viewports.
+5. **Layout Constraints:**
+   - Entire application wrapped in a `.page-container` with a `max-width: 1200px` centered on the viewport (`margin: 0 auto`).
+6. **Git Workflow:**
+   - Developed on branch `feature/responsive-flex-grid`, merged via Pull Request, and pulled locally.
