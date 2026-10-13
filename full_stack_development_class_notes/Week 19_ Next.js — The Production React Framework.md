@@ -1,260 +1,188 @@
 # Week 19: Next.js — The Production React Framework
 
-Client-Side Rendered (CSR) applications suffer from empty initial HTML, delayed time-to-interactive, and search engine indexing penalties. This week, you master **Next.js (App Router)** — the industry-standard full-stack React meta-framework. You will master **React Server Components (RSC)**, **Hydration Mechanics**, **Rendering Strategies (SSR, SSG, ISR)**, **Next.js Route Handlers as Secure API Proxies**, and **Streaming with React Suspense**.
+Welcome to Week 19 and welcome to **Part V: Production Full-Stack Development**!
+
+In Weeks 11–14, you built frontend React apps with Vite. In Weeks 15–18, you built backend Express APIs with PostgreSQL. They were two separate projects: running on two separate ports (`5173` and `5000`), with separate terminals and separate deployments.
+
+In modern web development, the lines between frontend and backend have merged into **Full-Stack Frameworks**. The undisputed king of modern full-stack web development is **Next.js**.
+
+Created by Vercel, Next.js gives you:
+- React on both the server and the browser.
+- Blazing-fast page loads with **Server-Side Rendering (SSR)**.
+- The ability to query databases directly inside your React components with **React Server Components (RSC)**.
+- Built-in API endpoints and server actions in the same project!
+
+This week, you master the **Next.js App Router**, **Server vs. Client Components**, **Server Actions**, and full-stack architecture.
 
 ---
 
-## Module 1: The Next.js Paradigm: Server vs. Client Components
+## Pedagogical Roadmap
 
-### 1. The Core Terminology of Modern React Meta-Frameworks
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **React Server Component (RSC)** | A component that executes **exclusively on the server** during request or build time, emitting raw HTML and serialized payload, with **zero JavaScript shipped to the browser bundle**. | Default in Next.js App Router. Can directly query databases, read server filesystem, and use secrets safely. |
-| **Client Component (`'use client'`)** | A component declared with `'use client'` that is pre-rendered on the server and hydrated in the browser to enable interactivity, state, and browser event listeners. | Used for UI requiring `useState`, `useEffect`, `onClick`, or browser APIs (`localStorage`, `window`). |
-| **Hydration** | The process where React in the browser downloads component JavaScript, inspects the server-rendered HTML, and attaches event listeners to make the DOM interactive. | Bridges the gap between fast server HTML and dynamic client interactivity. |
-| **Serialization Boundary** | The boundary line where data is passed from a Server Component to a Client Component via `props`. | Props **must be JSON-serializable** (primitives, plain objects, arrays). You cannot pass functions or database class instances across this boundary! |
-| **Streaming SSR** | Progressively streaming chunks of server-rendered HTML over HTTP as they become ready, instead of waiting for all slow database queries to finish before sending the page. | Enabled via `<Suspense>` boundaries and `loading.tsx`. |
+```mermaid
+flowchart TD
+    M1["<b>Module 1: Why Next.js? (The Instant Meal Analogy)</b><br/>• Pure React (Raw Ingredients) vs Next.js (Cooked Meal)<br/>• Client-Side Rendering (CSR) vs Server-Side Rendering (SSR)<br/>• Better SEO and instant page loading"]
+    --> M2["<b>Module 2: Server vs. Client Components</b><br/>• Server Components (The Default): 0 KB JS sent to browser<br/>• Querying databases directly inside components!<br/>• When to use 'use client' (Buttons, state, inputs)"]
+    --> M3["<b>Module 3: The App Router Folder Structure</b><br/>• Folders ARE URLs (app/spots/[id]/page.tsx)<br/>• Root layouts (layout.tsx)<br/>• Instant loading skeletons (loading.tsx)"]
+    --> M4["<b>Module 4: Server Actions ('use server')</b><br/>• Mutating database data directly from form submissions<br/>• Zero manual API boilerplate<br/>• Automatic cache revalidation (revalidatePath)"]
+    --> M5["<b>Module 5: Upgrading Lagos Spots to Next.js</b><br/>• Combining frontend UI & PostgreSQL queries in one codebase!"]
+```
 
 ---
 
-### 2. Under the Hood: The RSC & Hydration Execution Lifecycle
+## Module 1: Why Next.js? (The Instant Meal Analogy)
+
+### 1. The Raw Ingredients vs The Cooked Meal
+
+> [!NOTE]
+> **The Mental Model:**
+> - **Pure Client-Side React (Vite):** You order food at a restaurant, and the waiter brings you **raw rice, raw onions, and raw chicken** to your table. You have to wait while your phone's browser compiles and cooks the meal on your screen. If your phone has a slow processor or poor battery, the page takes seconds to appear!
+> - **Next.js (Server-Side Rendering):** The master chef in the kitchen (the server) cooks the entire meal to perfection and serves a steaming, delicious plate of food directly to your table (**fully rendered HTML**). The user sees the completed webpage **in milliseconds**, even on slow 3G mobile networks!
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User
-    participant Browser
-    participant Server as Next.js Node Server
-    participant DB as PostgreSQL Database
+    participant User as User's Mobile Phone
+    participant Server as Next.js Server
 
-    User->>Browser: Enters URL: https://flowboard.app/boards
-    Browser->>Server: HTTP GET /boards
-    Server->>DB: Server Component executes: SELECT * FROM boards
-    DB-->>Server: Board records
-    Note over Server: Server renders Server Components to static HTML<br/>+ generates RSC Payload stream
-    Server-->>Browser: Streams HTML chunk immediately! (First Contentful Paint: <100ms)
-    Browser-->>User: User sees complete rendered page instantly!
-
-    rect rgb(240, 255, 240)
-        Note over Browser: Background Hydration Step
-        Browser->>Server: Fetches Client Component JS Chunks
-        Server-->>Browser: Returns BoardCard.js (Interactive bundle)
-        Browser->>Browser: React binds onClick, useState listeners to the live DOM
-        Note over Browser: Page is now fully interactive (Time to Interactive)!
-    end
+    User->>Server: Visits https://lagosspots.app
+    Note over Server: Server executes React code & queries PostgreSQL
+    Server-->>User: Delivers fully formed HTML with text, images & cards!
+    User-->>User: User sees page INSTANTLY! (&lt;100ms)
+    Note over User: React loads in background to enable button clicks (Hydration)
 ```
 
 ---
 
-### 3. Server vs. Client Components: Decision Matrix
+### 2. Creating a Next.js App
 
-```mermaid
-graph TD
-    Decision{What does the component require?}
-    Decision -->|"Direct DB queries, Private API Secrets, Zero-bundle weight"| ServerComp["<b>Server Component</b> (Default)<br/>• async function Page()<br/>• await db.query()<br/>• 0 KB JavaScript sent to browser"]
-    Decision -->|"Interactivity: useState, useEffect, onClick, Browser APIs"| ClientComp["<b>Client Component</b><br/>• 'use client' at top of file<br/>• Interactive event listeners<br/>• Hydrated on client"]
+Run the official Next.js installer:
+
+```bash
+npx create-next-app@latest lagos-spots-next --typescript --tailwind --eslint --app --src-dir --no-turbopack
 ```
 
-| Use Case | Component Type | Reason |
-| :--- | :--- | :--- |
-| Fetch initial data from PostgreSQL database | **Server Component** | Eliminates network waterfall; keeps database credentials secure on server. |
-| Search filter input with live typing state | **Client Component** | Requires `useState` and `onChange` event handlers. |
-| Static marketing page or documentation article | **Server Component** | Zero client JavaScript; optimal SEO and Core Web Vitals. |
-| Dark mode toggle button reading `localStorage` | **Client Component** | Accesses browser `window` / `localStorage` APIs. |
+Select:
+- TypeScript: **Yes**
+- Tailwind CSS: **Yes**
+- `src/` directory: **Yes**
+- App Router: **Yes**
+
+Run `npm run dev` and open `http://localhost:3000`!
 
 ---
 
-## Module 2: Route Handlers & Secure API Proxying
+## Module 2: Server Components vs. Client Components
 
-### 1. Why Proxy External APIs Through Route Handlers?
+Next.js introduces the biggest evolution in React history: **React Server Components (RSC)**.
 
-In Week 9, we fetched OpenStreetMap's Nominatim API directly from client-side JavaScript. In production, this causes three severe problems:
-1. **CORS & Rate Limiting:** Third-party APIs throttle requests when thousands of different client browsers spam requests.
-2. **Missing Caching:** Every single client request hits the external provider, even for duplicate searches (e.g., "Victoria Island").
-3. **Exposed Secrets:** If an API requires a paid secret API key, storing it in client-side code exposes it to theft.
+### 1. Server Components (The Default in Next.js)
 
-**Next.js Route Handlers (`app/api/.../route.ts`)** solve this by acting as a secure server-side proxy with built-in edge caching:
-
-```mermaid
-flowchart LR
-    BrowserClient["Browser Client<br/>(Lagos Spots / Flowboard)"] -->|"GET /api/search?q=Lekki"| NextProxy["<b>Next.js Route Handler</b><br/>(app/api/search/route.ts)<br/>• Edge Caches for 1 Hour<br/>• Injects Private API Key"]
-    NextProxy -->|"Cached hit: 0ms<br/>Cache miss: fetch()"| ExternalAPI["External Provider<br/>(Nominatim / Mapbox)"]
-```
-
----
-
-### 2. Implementing a Cached Route Handler
-
-```ts
-// app/api/search/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q');
-
-  if (!query || query.trim().length < 2) {
-    return NextResponse.json(
-      { status: 'fail', message: 'Query parameter "q" must be at least 2 characters.' },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const encodedQuery = encodeURIComponent(`${query.trim()}, Lagos, Nigeria`);
-    const endpoint = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodedQuery}`;
-
-    // Next.js Extended fetch with Cache Revalidation (ISR)
-    const response = await fetch(endpoint, {
-      headers: {
-        'Accept-Language': 'en',
-        'User-Agent': 'FlowboardLagosApp/1.0',
-      },
-      next: {
-        revalidate: 3600, // Cache response at the CDN Edge for 1 hour (3,600 seconds)
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upstream API failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    return NextResponse.json({
-      status: 'success',
-      results: data.length,
-      data,
-    });
-  } catch (error: any) {
-    console.error('Proxy search failed:', error);
-    return NextResponse.json(
-      { status: 'error', message: 'Failed to retrieve geospatial data from upstream provider.' },
-      { status: 502 } // Bad Gateway
-    );
-  }
-}
-```
-
----
-
-## Module 3: Composing Server & Client Components
-
-### 1. Next.js App Router File Structure
-
-```
-app/
-├── layout.tsx             # Root layout (HTML, Body, Global Nav)
-├── page.tsx               # Homepage (Server Component)
-├── loading.tsx            # Global streaming fallback skeleton
-├── error.tsx              # Client-side Error Boundary
-├── not-found.tsx          # Custom 404 page
-├── api/
-│   └── search/
-│       └── route.ts       # Proxy Route Handler
-└── boards/
-    ├── page.tsx           # Server Component fetching Flowboard boards
-    ├── [id]/
-    │   └── page.tsx       # Dynamic route: /boards/:id
-    └── components/
-        └── CreateBoardModal.tsx  # 'use client' Interactive Modal
-```
-
----
-
-### 2. Connecting Next.js to the Flowboard Backend
+In the Next.js `app` folder, **every component is a Server Component by default**.
+- It runs **strictly on the server**.
+- It ships **ZERO kilobytes of JavaScript to the browser** (saving mobile data for your users!).
+- You can mark the function as `async` and **query your database directly inside the component**:
 
 ```tsx
-// app/boards/page.tsx (Async Server Component)
-import { Suspense } from 'react';
-import { cookies } from 'next/headers';
-import Link from 'next/link';
-import { CreateBoardButton } from './components/CreateBoardButton';
+// src/app/page.tsx (A React Server Component!)
+import { db } from "@/db";
+import { spots } from "@/db/schema";
 
-interface Board {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-}
-
-// Data fetching function running directly on the server
-async function fetchUserBoards(): Promise<Board[]> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('session_id')?.value;
-
-  const response = await fetch(`${process.env.FLOWBOARD_API_URL || 'http://localhost:4000'}/api/v1/boards`, {
-    headers: {
-      Cookie: `session_id=${sessionCookie || ''}`,
-    },
-    cache: 'no-store', // Always fetch fresh data for authenticated dashboards
-  });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('UNAUTHORIZED');
-    }
-    throw new Error('Failed to load boards from backend service.');
-  }
-
-  const payload = await response.json();
-  return payload.data.boards;
-}
-
-// Suspense-wrapped Async List Component
-async function BoardsGrid() {
-  const boards = await fetchUserBoards();
-
-  if (boards.length === 0) {
-    return (
-      <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
-        <p className="text-slate-500">You haven't created any task boards yet.</p>
-      </div>
-    );
-  }
+// Direct database query right inside your React component!
+export default async function HomePage() {
+  const allSpots = await db.select().from(spots);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {boards.map((board) => (
-        <Link
-          key={board.id}
-          href={`/boards/${board.id}`}
-          className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all"
-        >
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{board.title}</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{board.description}</p>
-        </Link>
-      ))}
-    </div>
+    <main className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Explore Lagos Spots</h1>
+      <div className="grid grid-cols-2 gap-4">
+        {allSpots.map((spot) => (
+          <article key={spot.id} className="p-4 bg-white rounded border shadow-sm">
+            <h3 className="font-bold text-lg">{spot.name}</h3>
+            <p className="text-sm text-slate-500">📍 {spot.area}</p>
+          </article>
+        ))}
+      </div>
+    </main>
   );
 }
+```
 
-// Main Page Layout
-export default function BoardsDashboardPage() {
+Notice that there are no `useState`, `useEffect`, `fetch()`, or `isLoading` spinners needed here! The server queries the database and renders the HTML directly!
+
+---
+
+### 2. When to Use Client Components (`'use client'`)
+
+If a component needs **user interactivity**:
+- Clicking a button with `onClick`
+- Storing form input with `useState`
+- Browser APIs like `localStorage` or `window`
+
+You add the directive **`'use client'`** at the very top of that specific file:
+
+```tsx
+// src/components/FavoriteButton.tsx
+"use client"; // Marks this specific component as an interactive Client Component!
+
+import { useState } from "react";
+
+export function FavoriteButton({ spotId }: { spotId: string }) {
+  const [isSaved, setIsSaved] = useState(false);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Workspace Boards</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage team projects and sprint workflows.</p>
-        </div>
-        {/* Client Component with Modal Interactivity */}
-        <CreateBoardButton />
-      </div>
+    <button
+      onClick={() => setIsSaved(!isSaved)}
+      className="text-sm px-3 py-1 rounded border mt-2"
+    >
+      {isSaved ? "❤️ Favorited" : "🤍 Save"}
+    </button>
+  );
+}
+```
 
-      {/* Streaming Suspense Boundary with Skeleton Fallback */}
-      <Suspense
-        fallback={
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="h-36 bg-slate-200 dark:bg-slate-700 rounded-2xl"></div>
-            ))}
-          </div>
-        }
-      >
-        <BoardsGrid />
-      </Suspense>
+> [!TIP]
+> **The Golden Rule:** Keep your page layout and data fetching as Server Components. Only push `'use client'` down to the small, interactive buttons and inputs that actually need it!
+
+---
+
+## Module 3: The App Router Folder Structure
+
+In Next.js, **your folders on your computer define your website's URL routes**:
+
+```
+src/app/
+├── layout.tsx            # Global Root Layout (Navbar, Footer, HTML skeleton)
+├── page.tsx              # Home Page (/)
+├── loading.tsx           # Automatic Loading Skeleton while database queries run!
+├── submit/
+│   └── page.tsx          # URL: /submit
+└── spots/
+    └── [id]/             # Dynamic Route!
+        └── page.tsx      # URL: /spots/123
+```
+
+### Dynamic Routes with `[id]`
+To build a place details page at `/spots/:id`:
+Create `src/app/spots/[id]/page.tsx`:
+
+```tsx
+// src/app/spots/[id]/page.tsx
+import { db } from "@/db";
+import { spots } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
+
+export default async function SpotDetailPage({ params }: { params: { id: string } }) {
+  const [spot] = await db.select().from(spots).where(eq(spots.id, params.id));
+
+  if (!spot) {
+    notFound(); // Next.js automatically shows a beautiful 404 page!
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow mt-8">
+      <h1 className="text-3xl font-extrabold">{spot.name}</h1>
+      <p className="text-slate-500 mt-1">📍 {spot.area}</p>
+      <p className="mt-4 text-slate-700">{spot.description}</p>
     </div>
   );
 }
@@ -262,47 +190,105 @@ export default function BoardsDashboardPage() {
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 4: Server Actions (`'use server'`)
 
-| Pitfall | Root Cause | Fix |
+In traditional web development, to submit a form, you had to:
+1. Write a frontend form with `onSubmit` and `fetch('/api/spots')`.
+2. Write a backend Express route with `app.post('/api/spots')`.
+3. Handle JSON serialization and status codes on both sides.
+
+In Next.js, you can write a **Server Action**: an asynchronous function that runs directly on the server when a standard HTML form is submitted!
+
+```tsx
+// src/app/submit/page.tsx
+import { db } from "@/db";
+import { spots } from "@/db/schema";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+
+export default function SubmitSpotPage() {
+  // 🟢 Server Action: Runs directly on the server!
+  async function createSpot(formData: FormData) {
+    "use server"; // Marks function as a Server Action
+
+    const name = formData.get("name") as string;
+    const area = formData.get("area") as string;
+    const description = formData.get("description") as string;
+
+    if (!name || !area) return;
+
+    // Direct database insert:
+    await db.insert(spots).values({
+      name: name.trim(),
+      area: area.trim(),
+      description: description ? description.trim() : "",
+    });
+
+    // Clear cached homepage so the new spot shows up immediately:
+    revalidatePath("/");
+
+    // Redirect user back to home page:
+    redirect("/");
+  }
+
+  return (
+    <div className="max-w-md mx-auto p-6 bg-white rounded shadow mt-8">
+      <h2 className="text-2xl font-bold mb-4">Submit a New Spot</h2>
+      <form action={createSpot} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold mb-1">Spot Name</label>
+          <input name="name" required className="w-full border p-2 rounded text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold mb-1">Area</label>
+          <input name="area" required className="w-full border p-2 rounded text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold mb-1">Description</label>
+          <textarea name="description" className="w-full border p-2 rounded text-sm" />
+        </div>
+        <button type="submit" className="w-full bg-orange-600 text-white font-bold py-2 rounded">
+          Submit Place
+        </button>
+      </form>
+    </div>
+  );
+}
+```
+
+---
+
+## Module 5: Rookie Traps & Debugging Guide
+
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **`ReferenceError: window is not defined`** | Accessing `window`, `document`, or `localStorage` inside a Server Component. | Move browser API code into a Client Component wrapped with `'use client'` inside `useEffect`. |
-| **Hydration Mismatch Error** | Server-rendered HTML differs from Client-rendered HTML (e.g. `new Date().toLocaleTimeString()` or `Math.random()`). | Render dynamic browser timestamps only after component has mounted on client. |
-| **Passing Functions as Props to Client Components** | Non-serializable values crossing the Server-to-Client serialization boundary. | Pass JSON-serializable primitives/objects or use **Server Actions** (`'use server'`). |
+| `useState is not defined in Server Component` | You tried using `useState` or `useEffect` inside a Server Component. | Add `"use client";` at the very first line of the file. |
+| `Cannot pass functions as props to Client Component` | You tried passing a server function directly across the serialization boundary. | Pass plain JSON data (strings, numbers, objects), or pass a Server Action. |
+| Page does not update after creating a record | Next.js cached the page data for speed. | Call `revalidatePath("/")` inside your Server Action after database mutations. |
 
 ---
 
-### Week 19: Comprehensive Assignment
+## 🎯 Week 19 Hands-on Classroom Exercises
 
-**Objective:** Scaffold the full-stack Flowboard frontend with Next.js App Router, implement a cached Route Handler proxy for geospatial lookups, and connect server-rendered pages to the Flowboard Express API.
+### Level 1: Scaffolding Your Next.js App
+1. Initialize a new Next.js project with App Router and Tailwind.
+2. Edit `src/app/page.tsx` and verify that changes appear instantly in your browser.
+3. Configure `layout.tsx` with a shared header showing "Lagos Spots — Full-Stack Edition".
 
-**Requirements:**
-1. **Next.js Project Setup:**
-   - Initialized with `create-next-app` using TypeScript, Tailwind CSS v4, and App Router.
-   - Configured `NEXT_PUBLIC_` vs server-only environment variables in `.env.local`.
-2. **Cached Route Handler Proxy:**
-   - `GET /api/search` implemented proxying Nominatim queries with edge revalidation (`next: { revalidate: 3600 }`).
-3. **Server Component Data Fetching:**
-   - `/boards` dashboard rendered as an async Server Component reading cookies and querying the Flowboard backend API.
-   - Wrapped in `<Suspense>` with animated loading skeleton states.
-4. **Interactive Client Component Composition:**
-   - Interactive `CreateBoardButton` component declared with `'use client'` managing modal open/close states.
-5. **Git Workflow:**
-   - Developed on branch `feature/nextjs-fullstack`, merged via Pull Request, and pulled locally.
+### Level 2: Database Query in a Server Component
+1. Connect your Neon PostgreSQL database to Next.js using Drizzle.
+2. Inside `src/app/page.tsx`, directly query your `spots` table and render real place cards on the homepage.
+3. Add a `loading.tsx` file to display an automatic loading skeleton while the database queries run!
+
+### Level 3: Form Submission with Server Actions
+1. Build `src/app/submit/page.tsx`.
+2. Write a Server Action that inserts a new place into PostgreSQL and calls `revalidatePath("/")`.
+3. Test submitting a spot and watch the homepage update automatically with the new place!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [Next.js App Router Documentation](https://nextjs.org/docs/app) — The comprehensive guide to Server Components, dynamic routing, caching, and Route Handlers.
-- [React Server Components RFC (GitHub)](https://github.com/reactjs/rfcs/blob/main/text/0188-server-components.md) — The original engineering specification for React Server Components.
-- [Vercel Next.js Deployment Best Practices](https://vercel.com/docs/frameworks/nextjs) — Serverless functions, Edge Middleware, and ISR caching on Vercel.
-
-### Recommended Textbooks & Canonical Books
-- **Real-World Next.js** by Michele Riva (Packt) — *Production architecture, incremental static regeneration (ISR), and performance optimization.*
-- **Patterns.dev: Modern Web App Design Patterns** by Addy Osmani and Lydia Hallie — *Deep dive into SSR, SSG, Streaming, Islands Architecture, and Progressive Hydration.* (Available free online at `patterns.dev`).
-
-### Deep Dives & Architectural Guides
-- [Lee Robinson: How React Server Components Work Under the Hood](https://leerob.io/blog/react-server-components) — Visualizing the wire format, serialization boundaries, and bundle elimination.
-- [Next.js Caching and Revalidation Guide](https://nextjs.org/docs/app/building-your-application/caching) — Complete breakdown of the 4 caching layers in Next.js.
+* [Next.js Official Documentation: App Router](https://nextjs.org/docs/app) — The authoritative guide to Next.js routing, caching, and server actions.
+* [React Official Documentation: Server Components](https://react.dev/reference/rsc/server-components) — Understanding the architecture of Server Components.
+* [The Valley of Code: Next.js](https://thevalleyofcode.com/nextjs/) — Flavio Copes' beginner guide to full-stack React.

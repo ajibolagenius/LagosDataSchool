@@ -1,385 +1,370 @@
 # Week 13: Routing, Global State & Data Fetching
 
-Single-page applications must support bookmarkable URLs, deeply nested layouts, and global data synchronization without suffering from **"Prop Drilling"**. This week, you transform Lagos Spots into a multi-route application using **React Router v6**, implement global state management with the **React Context API**, and replace imperative `useEffect` data fetching with production-grade **Server State Management via TanStack Query (React Query)**.
+Welcome to Week 13! In Weeks 11 and 12, you turned Lagos Spots into a responsive, state-driven React application. However, everything currently lives on a single screen:
+- If a user wants to send a link to a specific place (like `/spots/terra-kulture`), they can't — there is only one URL (`/`).
+- If a user clicks the browser's **Back button**, it leaves your website instead of going to the previous screen!
+- If your favorites list is needed across multiple pages, you have to pass it through layers of components that don't even care about it (**Prop Drilling**).
+
+This week, you transform Lagos Spots into a full-fledged multi-page web application using **React Router**, manage app-wide data with the **React Context API**, and master production-grade data fetching with **TanStack Query (React Query)**.
 
 ---
 
-## Module 1: Client-Side Routing with React Router v6
-
-### 1. The Core Terminology of Routing
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Single-Page Application (SPA)** | A web application that loads a single HTML page on initial visit and dynamically rewrites the page content as the user navigates, without reloading from the server. | Provides native-app speed by eliminating full-page browser refreshes. |
-| **HTML5 History API** | Browser APIs (`history.pushState()`, `history.replaceState()`, and the `popstate` event) enabling JavaScript to manipulate the browser address bar and history stack. | React Router uses this to update URLs without triggering browser HTTP requests. |
-| **Layout Route** | A parent route that renders persistent shared layout UI (Navbar, Footer) and embeds child routes inside an `<Outlet />`. | Keeps navigation state intact across page transitions. |
-| **Dynamic Route Segment** | A URL path segment preceded by a colon (`:id` or `:slug`) that acts as a wildcard parameter. | Read inside components using the `useParams()` hook. |
-| **Query Parameters** | Key-value pairs appended to a URL after `?` (e.g., `/spots?category=food&sort=name`). | Read and written via the `useSearchParams()` hook. |
-
----
-
-### 2. Under the Hood: How Client-Side Navigation Works
+## Pedagogical Roadmap
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Link as <Link to="/spots/terra-kulture">
-    participant Router as React Router Engine
-    participant History as Browser History API
-    participant Outlet as <Outlet /> Component
-
-    User->>Link: Clicks navigation link
-    Link->>Router: Intercepts click (event.preventDefault())
-    Router->>History: window.history.pushState({}, '', '/spots/terra-kulture')
-    Note over History: Address bar updates instantly; NO network reload!
-    Router->>Router: Matches route path "spots/:id" -> SpotDetailPage
-    Router->>Outlet: Replaces Outlet content with <SpotDetailPage />
-    Outlet-->>User: Instant component transition!
+flowchart TD
+    M1["<b>Module 1: Client-Side Routing (React Router)</b><br/>• The TV Channel mental model<br/>• Routes, Route, Link, NavLink<br/>• Dynamic paths (:id) with useParams()"]
+    --> M2["<b>Module 2: Layouts & Nested Routes</b><br/>• Shared Navbar and Footer<br/>• The Outlet component placeholder<br/>• 404 Not Found pages"]
+    --> M3["<b>Module 3: Global State with Context API</b><br/>• Eliminating Prop Drilling (The Broadcast Tower)<br/>• createContext, Provider, useContext<br/>• Building FavoritesContext"]
+    --> M4["<b>Module 4: Server State with TanStack Query</b><br/>• Client state vs Server state<br/>• The Smart Fridge / Cache mental model<br/>• useQuery: isLoading, error, data"]
+    --> M5["<b>Module 5: Project Integration (Lagos Spots Multi-Page)</b><br/>• Home, Spot Detail, Favorites, and Submit pages<br/>• Flawless navigation and caching"]
 ```
 
 ---
 
-### 3. Route Configuration with `createBrowserRouter`
+## Module 1: Client-Side Routing (React Router)
+
+### 1. What is Client-Side Routing? (The TV Channel Analogy)
+
+> [!NOTE]
+> **The Mental Model:**
+> - In a traditional website, clicking a link is like ordering a completely new television set every time you want to watch a different show. The entire screen goes blank while the whole page reloads from the server.
+> - In a **Single Page Application (SPA)** with **React Router**, clicking a link is like changing the TV channel with a remote control. The television (your browser) stays on, the frame stays steady, and only the show on the screen changes instantly!
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Link as &lt;Link to="/spots/2"&gt;
+    participant Router as React Router
+    participant Browser as Browser Address Bar
+    participant Page as Screen
+
+    User->>Link: Clicks link
+    Link->>Router: Intercepts click (Stops full reload!)
+    Router->>Browser: Updates URL to "/spots/2"
+    Router->>Page: Renders &lt;SpotDetailPage /&gt; instantly (0ms network delay!)
+```
+
+---
+
+### 2. Setting Up React Router
+
+Install the package in your project:
+```bash
+npm install react-router-dom
+```
+
+#### The Core Building Blocks:
+| Component / Hook | Role | Example |
+| :--- | :--- | :--- |
+| **`<BrowserRouter>`** | Wraps your app and connects it to browser navigation history. | Placed in `main.tsx` or `App.tsx`. |
+| **`<Routes>` & `<Route>`** | Defines the path-to-component mapping. | `<Route path="/about" element={<AboutPage />} />` |
+| **`<Link>`** | Replaces traditional `<a>` tags to navigate without reloading. | `<Link to="/favorites">Favorites</Link>` |
+| **`<NavLink>`** | Like `<Link>`, but automatically knows if it is the currently active page (great for navbars!). | `<NavLink className={({isActive}) => isActive ? 'active' : ''}>` |
+| **`useParams()`** | Reads dynamic variables from the URL. | `const { id } = useParams();` |
+
+---
+
+### 3. Dynamic Routes & `useParams()`
+
+What if you have 100 spots in Lagos? You don't create 100 separate route files! You create **one dynamic route** with a parameter:
 
 ```tsx
-// src/router.tsx
-import { createBrowserRouter } from 'react-router-dom';
-import { RootLayout } from './layouts/RootLayout';
-import { HomePage } from './pages/HomePage';
-import { SpotDetailPage } from './pages/SpotDetailPage';
-import { SubmitSpotPage } from './pages/SubmitSpotPage';
-import { FavoritesPage } from './pages/FavoritesPage';
-import { NotFoundPage } from './pages/NotFoundPage';
+// Inside App.tsx:
+<Routes>
+  <Route path="/" element={<HomePage />} />
+  {/* Dynamic route parameter: :id acts as a placeholder! */}
+  <Route path="/spots/:id" element={<SpotDetailPage />} />
+</Routes>
+```
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <RootLayout />,
-    errorElement: <NotFoundPage />,
-    children: [
-      {
-        index: true, // Default child route for "/"
-        element: <HomePage />,
-      },
-      {
-        path: 'spots/:id', // Dynamic route: /spots/terra-kulture
-        element: <SpotDetailPage />,
-      },
-      {
-        path: 'submit',
-        element: <SubmitSpotPage />,
-      },
-      {
-        path: 'favorites',
-        element: <FavoritesPage />,
-      },
-    ],
-  },
-]);
+#### Reading the Dynamic ID inside `SpotDetailPage.tsx`:
+```tsx
+// src/pages/SpotDetailPage.tsx
+import { useParams, Link } from "react-router-dom";
+import { spotsData } from "../data/spots";
+
+export function SpotDetailPage() {
+  // Grab the :id from the URL (always returned as a string):
+  const { id } = useParams<{ id: string }>();
+
+  // Find the matching spot:
+  const spot = spotsData.find((s) => s.id === Number(id));
+
+  if (!spot) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-bold">Spot Not Found</h2>
+        <Link to="/" className="text-orange-600 underline mt-4 inline-block">
+          &larr; Back to all spots
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow">
+      <Link to="/" className="text-sm text-slate-500 hover:text-slate-800">
+        &larr; Back to Explore
+      </Link>
+      <h1 className="text-3xl font-extrabold text-slate-900 mt-4">{spot.name}</h1>
+      <span className="inline-block bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded mt-2">
+        {spot.category}
+      </span>
+      <p className="text-slate-600 mt-4">{spot.description}</p>
+      <p className="text-lg font-semibold text-slate-800 mt-6">
+        📍 {spot.area} · {spot.fee === 0 ? "Free Entry" : `₦${spot.fee.toLocaleString()}`}
+      </p>
+    </div>
+  );
+}
+```
+
+---
+
+## Module 2: Layouts & Nested Routes with `<Outlet />`
+
+Instead of duplicating the `<Navbar />` and `<Footer />` inside every single page, React Router lets you create a **Layout Route**:
+
+```mermaid
+flowchart TD
+    LAYOUT["<b>&lt;RootLayout /&gt;</b><br/>• Persistent &lt;Navbar /&gt;<br/>• <b>&lt;Outlet /&gt;</b> (Dynamic Page Window)<br/>• Persistent &lt;Footer /&gt;"]
+    LAYOUT --> PAGE1["When at '/':<br/>&lt;HomePage /&gt; inside Outlet"]
+    LAYOUT --> PAGE2["When at '/favorites':<br/>&lt;FavoritesPage /&gt; inside Outlet"]
+    LAYOUT --> PAGE3["When at '/spots/:id':<br/>&lt;SpotDetailPage /&gt; inside Outlet"]
 ```
 
 ```tsx
 // src/layouts/RootLayout.tsx
-import React from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
-import { Header } from '../components/Header';
-import { Container } from '../components/Container';
+import { Outlet } from "react-router-dom";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
 
-export const RootLayout: React.FC = () => {
+export function RootLayout() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white flex flex-col">
-      <Header />
-      
-      <main className="flex-grow py-8">
-        <Container>
-          {/* Outlet is the dynamic placeholder where child routes render */}
-          <Outlet />
-        </Container>
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <Navbar />
+      <main className="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
+        {/* <Outlet /> is the placeholder where the active child page renders! */}
+        <Outlet />
       </main>
-
-      <footer className="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500">
-        &copy; 2026 Lagos Spots. Built for the community.
-      </footer>
+      <Footer />
     </div>
   );
-};
+}
 ```
 
 ---
 
-## Module 2: Global State Management with React Context
+## Module 3: Global State with the React Context API
 
-### 1. Eliminating Prop Drilling
+### 1. The Prop Drilling Problem (The Broadcast Tower Analogy)
 
-When state is needed by deeply nested components across different pages (e.g., user favorites needed on `HomePage`, `SpotDetailPage`, and `FavoritesPage`), passing props through intermediate layers is termed **Prop Drilling**:
+> [!NOTE]
+> **The Mental Model:**
+> - **Prop Drilling** is like whispering a message down a chain of 10 people to reach someone at the back of the room. The 8 people in the middle don't care about the message, but they must hear it and pass it along.
+> - **React Context** is like installing a **Radio Broadcast Tower**. The provider broadcasts data, and any component anywhere in the building can tune its receiver (`useContext`) directly to that broadcast, skipping the middle layers entirely!
 
 ```mermaid
 graph TD
-    subgraph PropDrilling["Prop Drilling Anti-Pattern"]
-        App1["App (holds favorites state)"] --> Layout1["RootLayout (doesn't need it)"]
-        Layout1 --> Page1["HomePage (doesn't need it)"]
-        Page1 --> Grid1["SpotsGrid (doesn't need it)"]
-        Grid1 --> Card1["SpotCard (NEEDS FAVORITES)"]
+    subgraph Drilling["Prop Drilling (Fragile & Messy)"]
+        A["App (has favorites)"] --> B["RootLayout (doesn't care)"]
+        B --> C["HomePage (doesn't care)"]
+        C --> D["SpotsGrid (doesn't care)"]
+        D --> E["SpotCard (NEEDS FAVORITES)"]
     end
 
-    subgraph ContextAPI["React Context Architecture"]
-        Provider["<b>FavoritesProvider</b><br/>(Wraps App Tree)"]
-        Card2["SpotCard<br/><code>useFavorites()</code>"]
-        FavPage2["FavoritesPage<br/><code>useFavorites()</code>"]
-        Detail2["SpotDetailPage<br/><code>useFavorites()</code>"]
+    subgraph Context["React Context (Clean Broadcast)"]
+        TOWER["<b>FavoritesProvider</b><br/>(Broadcasts: favoriteIds, toggleFavorite)"]
+        CARD["SpotCard<br/><code>useFavorites()</code>"]
+        NAV["Navbar Badge<br/><code>useFavorites()</code>"]
+        PAGE["FavoritesPage<br/><code>useFavorites()</code>"]
 
-        Provider -.->|"Direct Hook Access"| Card2
-        Provider -.->|"Direct Hook Access"| FavPage2
-        Provider -.->|"Direct Hook Access"| Detail2
+        TOWER -.->|"Direct Reception"| CARD
+        TOWER -.->|"Direct Reception"| NAV
+        TOWER -.->|"Direct Reception"| PAGE
     end
 ```
 
 ---
 
-### 2. Implementing `FavoritesContext` with Lazy Initialization
+### 2. Creating & Providing `FavoritesContext`
 
 ```tsx
 // src/context/FavoritesContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 interface FavoritesContextType {
-  favoriteIds: string[];
-  isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
+  favorites: number[];
+  isFavorite: (id: number) => boolean;
+  toggleFavorite: (id: number) => void;
 }
 
+// 1. Create the Context:
 const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'lagos_spots_favorites_v2';
-
-export const FavoritesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Lazy initial state function: Reads disk ONLY once on startup
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
+// 2. Create the Provider Component:
+export function FavoritesProvider({ children }: { children: React.ReactNode }) {
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    const saved = localStorage.getItem("lagos_spots_favs");
+    return saved ? JSON.parse(saved) : [];
   });
 
-  // Synchronize with localStorage whenever favorites change
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(favoriteIds));
-    } catch (err) {
-      console.error('Failed to persist favorites:', err);
-    }
-  }, [favoriteIds]);
+    localStorage.setItem("lagos_spots_favs", JSON.stringify(favorites));
+  }, [favorites]);
 
-  const isFavorite = (id: string): boolean => favoriteIds.includes(id);
+  function isFavorite(id: number): boolean {
+    return favorites.includes(id);
+  }
 
-  const toggleFavorite = (id: string): void => {
-    setFavoriteIds((prev) =>
+  function toggleFavorite(id: number) {
+    setFavorites((prev) =>
       prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id]
     );
-  };
+  }
 
   return (
-    <FavoritesContext.Provider value={{ favoriteIds, isFavorite, toggleFavorite }}>
+    <FavoritesContext.Provider value={{ favorites, isFavorite, toggleFavorite }}>
       {children}
     </FavoritesContext.Provider>
   );
-};
+}
 
-// Custom consumer hook with safety guard
-export const useFavorites = (): FavoritesContextType => {
+// 3. Custom Consumer Hook (Clean & safe):
+export function useFavorites() {
   const context = useContext(FavoritesContext);
   if (!context) {
-    throw new Error('useFavorites must be used within a <FavoritesProvider>');
+    throw new Error("useFavorites must be used within a <FavoritesProvider>");
   }
   return context;
-};
+}
+```
+
+Now, any component in your app can use favorites with a single clean line:
+```tsx
+const { isFavorite, toggleFavorite } = useFavorites();
 ```
 
 ---
 
-## Module 3: Server State Management with TanStack Query
+## Module 4: Server State with TanStack Query (React Query)
 
-### 1. Client State vs. Server State
+### 1. Client State vs Server State (The Smart Fridge Analogy)
 
-| Dimension | Client State (UI State) | Server State (Remote State) |
-| :--- | :--- | :--- |
-| **Ownership** | Owned entirely by the browser client (e.g., modal open, selected tab, form inputs). | Owned remotely by a database/server (e.g., list of spots, geocoding search results). |
-| **Persistence** | Synchronous and in-memory. | Asynchronous, requiring network roundtrips. |
-| **Staleness** | Never stale; client has 100% control. | Can become **stale** immediately if another user updates data remotely. |
-| **Management Tool** | `useState`, `useReducer`, `React Context`. | **TanStack Query (React Query)**, SWR. |
+| Type | What It Is | Who Owns It? | Best Tool |
+| :--- | :--- | :--- | :--- |
+| **Client State** | UI state like "Is modal open?", "Selected theme". | The browser client. | `useState`, `Context`. |
+| **Server State** | Data that lives in an external database/API (places, locations, users). | The remote server. | **TanStack Query**. |
 
----
-
-### 2. Under the Hood: The Stale-While-Revalidate (SWR) Lifecycle
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Component as <SearchBar />
-    participant Cache as TanStack Query Cache
-    participant API as Nominatim Geocoding API
-
-    User->>Component: Types "Yaba" (Query Key: ['places', 'Yaba'])
-    Component->>Cache: Query cache for ['places', 'Yaba']
-    alt Data in Cache and Fresh (< staleTime)
-        Cache-->>Component: Returns cached data immediately (0ms latency!)
-    else Data in Cache but Stale
-        Cache-->>Component: Returns stale cached data immediately (Fast UI)
-        Cache->>API: Background re-fetch Nominatim API
-        API-->>Cache: Returns fresh data
-        Cache->>Component: Updates component silently with fresh data
-    else Data Not in Cache
-        Component-->>User: Shows Loading Skeleton / Spinner
-        Cache->>API: Fetches Nominatim API
-        API-->>Cache: Stores in cache
-        Cache-->>Component: Returns fresh data
-    end
-```
+> [!TIP]
+> **The Mental Model:** TanStack Query is like a **Smart Refrigerator**.
+> When you want food, you check the fridge first (the **Cache**).
+> 1. If it's already there, you eat immediately (**0ms delay!**).
+> 2. Meanwhile, the fridge quietly contacts the market in the background to check if fresh food is available.
+> 3. If fresh food arrives, it updates your pantry seamlessly!
 
 ---
 
-### 3. Setting Up TanStack Query
+### 2. Setting Up TanStack Query
 
 ```bash
 npm install @tanstack/react-query
 ```
 
+Wrap your application in `QueryClientProvider`:
 ```tsx
 // src/main.tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { RouterProvider } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { FavoritesProvider } from './context/FavoritesContext';
-import { router } from './router';
-import './style.css';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Initialize global QueryClient
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // Data remains fresh for 5 minutes
-      gcTime: 1000 * 60 * 30,    // Unused cache retained in memory for 30 minutes
-      retry: 2,                 // Automatically retry failed requests up to 2 times
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <FavoritesProvider>
-        <RouterProvider router={router} />
-      </FavoritesProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={queryClient}>
+    <FavoritesProvider>
+      <App />
+    </FavoritesProvider>
+  </QueryClientProvider>
 );
 ```
 
 ---
 
-### 4. Querying Nominatim with `useQuery`
+### 3. Fetching Data with `useQuery`
+
+Replace 30 lines of manual `useState`, `useEffect`, `isLoading`, and `try/catch` with a single powerful hook:
 
 ```tsx
-// src/hooks/useNominatimSearch.ts
-import { useQuery } from '@tanstack/react-query';
-import { searchLocations } from '../api';
-import { NominatimLocation } from '../types';
+import { useQuery } from "@tanstack/react-query";
 
-export function useNominatimSearch(debouncedQuery: string) {
-  return useQuery<NominatimLocation[], Error>({
-    queryKey: ['locations', debouncedQuery], // Cache key uniquely identified by search string
-    queryFn: ({ signal }) => searchLocations(debouncedQuery, signal),
-    enabled: debouncedQuery.trim().length >= 3, // Only execute query if input has 3+ characters
+async function fetchLagosPlaces(searchTerm: string) {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${searchTerm}, Lagos`);
+  if (!res.ok) throw new Error("Network request failed");
+  return res.json();
+}
+
+export function PlacesSearch() {
+  const [searchTerm, setSearchTerm] = useState("Yaba");
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["places", searchTerm], // Unique cache key
+    queryFn: () => fetchLagosPlaces(searchTerm),
+    staleTime: 1000 * 60 * 5 // Data stays fresh in cache for 5 minutes!
   });
+
+  if (isLoading) return <p className="text-slate-500">⏳ Loading Lagos places...</p>;
+  if (error) return <p className="text-red-500">⚠️ Error loading places.</p>;
+
+  return (
+    <div>
+      <h3 className="font-bold mb-2">Search Results:</h3>
+      {data?.map((place: any) => (
+        <div key={place.place_id} className="p-3 border rounded mb-2 bg-white">
+          <p className="font-semibold text-sm">{place.display_name}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 ```
 
-```tsx
-// Usage in SearchBar:
-export const SearchBar: React.FC = () => {
-  const [query, setQuery] = useState('');
-  const debouncedQuery = useDebounce(query, 300);
-  
-  const { data: results = [], isLoading, isError, error } = useNominatimSearch(debouncedQuery);
-
-  return (
-    <div className="relative w-full max-w-lg mb-6">
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search Lagos locations..."
-        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-      />
-      {isLoading && <p className="text-xs text-orange-600 mt-1">Searching cache & network...</p>}
-      {isError && <p className="text-xs text-rose-500 mt-1">{error.message}</p>}
-      
-      {results.length > 0 && (
-        <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-          {results.map((place) => (
-            <li key={place.place_id} className="px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm cursor-pointer">
-              {place.display_name}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-};
-```
-
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 5: Rookie Traps & Debugging Guide
 
-| Pitfall | Root Cause | Fix |
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Full page reload on navigation** | Using regular `<a href="...">` tags instead of React Router `<Link to="...">`. | Use `<Link to="...">` or `<NavLink to="...">`. |
-| **Missing context error crash** | Consuming `useFavorites()` in a component not wrapped by `<FavoritesProvider>`. | Always wrap the root tree with Context Providers in `main.tsx`. |
-| **Static `queryKey` collision** | Passing a hardcoded key `queryKey: ['search']` so different query parameters overwrite each other. | Include dynamic variables in the key array: `queryKey: ['search', debouncedQuery]`. |
+| `useNavigate() may be used only in the context of a <Router> component` | You tried using routing hooks outside `<BrowserRouter>`. | Ensure your components are wrapped inside `<BrowserRouter>` in `main.tsx` or `App.tsx`. |
+| `useFavorites must be used within a <FavoritesProvider>` | You forgot to wrap your app tree in `<FavoritesProvider>`. | Wrap `<App />` with `<FavoritesProvider>` in `main.tsx`. |
+| Full page reloads when clicking links | You used standard `<a href="...">` tags instead of React Router's `<Link to="...">`. | Replace `<a>` with `<Link to="...">` or `<NavLink to="...">`. |
+| TanStack Query re-fetches endlessly | You passed an unstable function or inline object into `queryFn` or `queryKey`. | Ensure `queryKey` is an array of primitives: `['places', query]`. |
 
 ---
 
-### Week 13: Comprehensive Assignment
+## 🎯 Week 13 Hands-on Classroom Exercises
 
-**Objective:** Scale Lagos Spots into a multi-page routed application featuring React Router layouts, centralized favorites management with React Context, and server-state caching via TanStack Query.
+### Level 1: Multi-Route Setup
+1. Install `react-router-dom` and configure 3 routes:
+   - `/` $\to$ `<HomePage />`
+   - `/favorites` $\to$ `<FavoritesPage />`
+   - `/submit` $\to$ `<SubmitSpotPage />`
+2. Create a `<Navbar />` with `<NavLink>` tags that highlight in bold orange when the page is active.
 
-**Requirements:**
-1. **Client-Side Routing:**
-   - Routes configured with `createBrowserRouter`:
-     - `/` $\to$ `HomePage`
-     - `/spots/:id` $\to$ `SpotDetailPage` (reading `:id` via `useParams()`)
-     - `/submit` $\to$ `SubmitSpotPage`
-     - `/favorites` $\to$ `FavoritesPage`
-   - Persistent `RootLayout` with `<Outlet />` and active navigation styling using `<NavLink />`.
-2. **Global Favorites Context:**
-   - `FavoritesContext` and `FavoritesProvider` managing favorite IDs with lazy `localStorage` synchronization.
-   - Custom `useFavorites()` hook consumed across `SpotCard`, `SpotDetailPage`, and `FavoritesPage`.
-3. **Server State with TanStack Query:**
-   - Configured `QueryClientProvider` with 5-minute `staleTime`.
-   - `useNominatimSearch` custom query hook with cache-key parameterization and query cancellation.
-4. **Git Workflow:**
-   - Developed on branch `feature/routing-context-query`, merged via Pull Request, and pulled locally.
+### Level 2: Dynamic Place Detail Page
+1. Add a route: `/spots/:id`.
+2. On the home page, make each spot card link to `/spots/${spot.id}`.
+3. Build `<SpotDetailPage />` using `useParams()` to look up and display the spot's full details!
+
+### Level 3: Global Favorites Context
+1. Create `FavoritesContext` and wrap your app.
+2. In `<Navbar />`, show a live badge with the count of saved favorites: `Favorites (3)`.
+3. In `<SpotCard />`, wire the favorite button to `toggleFavorite(spot.id)` so clicking it updates everywhere in real time!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [React Router v6 Official Documentation](https://reactrouter.com/en/main) — Complete guide to nested route layouts, URL params, loaders, and data actions.
-- [TanStack Query (React Query) Official Docs](https://tanstack.com/query/latest) — Declarative asynchronous server-state management, cache invalidation, and garbage collection.
-- [React Official Documentation: Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context) — When and how to use React Context effectively without over-rendering.
-
-### Recommended Textbooks & Canonical Books
-- **React Design Patterns and Best Practices (3rd Edition)** by Carlos Santana Roldán (Packt) — *Chapters 6–8: Context API architecture, State machines, and Server-state integration.*
-- **Micro Frontends in Action** by Michael Geers (Manning) — *Client-side routing mechanics, History API integration, and decoupled frontend architecture.*
-
-### Deep Dives & Best Practices
-- [TkDodo's Blog: Practical React Query](https://tkdodo.eu/blog/practical-react-query) — The industry-standard deep-dive series on query keys, caching lifecycles, and optimistic updates.
-- [Kent C. Dodds: Application State Management with React](https://kentcdodds.com/blog/application-state-management-with-react) — Architectural guide to separating server cache from client UI state.
+* [The Valley of Code: React Router](https://thevalleyofcode.com/react/router) — Flavio Copes' gentle walkthrough of client-side routing.
+* [React Router Official Tutorial](https://reactrouter.com/en/main/start/tutorial) — The official step-by-step tutorial on layouts and loaders.
+* [React Official Documentation: Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context) — How Context eliminates prop drilling.
+* [TanStack Query Official Docs](https://tanstack.com/query/latest/docs/framework/react/overview) — The premier guide to server state management.

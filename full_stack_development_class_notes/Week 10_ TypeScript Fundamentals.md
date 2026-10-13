@@ -1,330 +1,352 @@
 # Week 10: TypeScript Fundamentals
 
-Until this point, you have written JavaScript with occasional type hints. This week, we transition to strict, professional **TypeScript**: understanding how the compiler enforces static guarantees, how the type system functions via **Structural Subtyping**, how to implement **Generics**, **Type Guards**, and **Discriminated Unions**, and how to ensure end-to-end type safety between third-party APIs and your application state.
+Welcome to Week 10! Over the past four weeks, you wrote pure, dynamic JavaScript: creating variables, manipulating arrays and objects, handling DOM events, and fetching real data from APIs.
+
+JavaScript is incredibly flexible, but that flexibility comes with a hidden cost. Have you ever spent 45 minutes tracking down a bug, only to realize:
+- You misspelled a property name (`spot.nmae` instead of `spot.name`)?
+- You passed a string `"5000"` into a function that expected a number, causing `"5000" + 200` to become `"5000200"`?
+- You tried to access `.length` on a variable that turned out to be `undefined`?
+
+In vanilla JavaScript, the browser will not warn you about these mistakes until your code actually runs (often in front of real users!).
+
+This week, you master **TypeScript**: JavaScript with a powerful **static type-checking safety net**. TypeScript catches bugs in your code editor while you type, before your code ever runs in a browser.
 
 ---
 
-## Module 1: The TypeScript Type System & Compilation Model
-
-### 1. The Core Terminology of TypeScript
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Static Type Checking** | Verifying the correctness of types at **compile-time** (in your editor or during build) before running code. | Prevents `TypeError: Cannot read properties of undefined` in production. |
-| **Type Erasure** | The process where the TypeScript compiler (`tsc`) removes all interfaces, types, and generic annotations, emitting pure JavaScript. | **TypeScript types do not exist at runtime.** They carry zero runtime performance overhead. |
-| **Structural Subtyping ("Duck Typing")** | Type compatibility is based solely on the *shape and properties* of an object, not its explicit name or inheritance class. | If an object has all required properties of an interface, TypeScript treats it as valid. |
-| **Type Inference** | The compiler's ability to deduce data types automatically without explicit annotations (e.g., `const x = 5` is inferred as `number`). | Minimizes noisy boilerplate while preserving full type safety. |
-| **Union Type (`A | B`)** | A type representing a value that can be *either* type `A` or type `B`. | Models multi-state outcomes (e.g., `Spot | undefined`, `'food' | 'study'`). |
-| **Intersection Type (`A & B`)** | Combines multiple type definitions into one unified shape containing all properties of both. | Used for extending properties across data models. |
-
----
-
-### 2. Under the Hood: The TypeScript Type Hierarchy
-
-Understanding TypeScript's type relationships prevents unsafe casting:
+## Pedagogical Roadmap
 
 ```mermaid
-graph TD
-    Top["<b>TOP TYPES</b><br/>• <code>unknown</code> (Safe: must narrow before use)<br/>• <code>any</code> (Unsafe: disables all checking)"]
-    
-    subgraph Concrete["Concrete Types"]
-        Obj["Objects, Arrays, Functions"]
-        Prim["Primitives: string, number, boolean, symbol, bigint"]
-        Nullish["null, undefined (Controlled by strictNullChecks)"]
-    end
-
-    subgraph Literal["Literal Types"]
-        Lit["'food' | 'study' | 42 | true"]
-    end
-
-    Bottom["<b>BOTTOM TYPE</b><br/>• <code>never</code> (Empty set: impossible state)"]
-
-    Top --> Concrete
-    Concrete --> Literal
-    Literal --> Bottom
+flowchart TD
+    M1["<b>Module 1: Why TypeScript? (The Seatbelt Analogy)</b><br/>• Static vs Dynamic typing<br/>• How TypeScript compiles to JavaScript (Type Erasure)<br/>• Setting up Vite + TypeScript"]
+    --> M2["<b>Module 2: Core Type Annotations</b><br/>• string, number, boolean<br/>• Type inference (letting TS do the work)<br/>• Array types (string[], number[])"]
+    --> M3["<b>Module 3: Functions with Types</b><br/>• Typing parameters and return values<br/>• Optional parameters (?)<br/>• void vs return types"]
+    --> M4["<b>Module 4: Interfaces & Custom Types</b><br/>• Defining object shapes (interface Spot)<br/>• Union types ('Food' | 'Art')<br/>• type vs interface (When to use which)"]
+    --> M5["<b>Module 5: DOM & Event Typing</b><br/>• HTMLInputElement vs HTMLElement<br/>• Typing event handlers (MouseEvent, SubmitEvent)<br/>• Type assertions (as HTMLInputElement)"]
+    --> M6["<b>Module 6: Intro to Generics</b><br/>• The reusable container mental model<br/>• Generic functions (&lt;T&gt;)<br/>• Safe localStorage helpers"]
 ```
-
-- **`any`:** Completely turns off the type checker for that variable. Using `any` is a dangerous escape hatch that propagates through your codebase (**Any Contagion**).
-- **`unknown`:** The type-safe counterpart of `any`. Any value can be assigned to `unknown`, but TypeScript **forbids accessing any properties on it until you narrow its type** via `typeof`, `instanceof`, or custom type guards.
-- **`never`:** Represents values that can never occur (e.g., the return type of a function that always throws an error or an unreachable branch in exhaustive switch checks).
 
 ---
 
-### 3. `interface` vs. `type` Alias: When to Use Which
+## Module 1: Why TypeScript? (The Seatbelt Analogy)
+
+### 1. Dynamic Typing vs Static Typing
+
+> [!NOTE]
+> **The Mental Model:**
+> - **Vanilla JavaScript is like driving without a seatbelt or lane assist.** You can drive anywhere you want at any speed, but if you drift into oncoming traffic, you crash.
+> - **TypeScript is the intelligent driver-assist system.** It alerts you the split-second your hands slip: *"Warning: you promised this was a number, but you are assigning a string!"*
+
+| Feature | Vanilla JavaScript | TypeScript |
+| :--- | :--- | :--- |
+| **When are errors caught?** | **Runtime** (When a user runs the code in the browser). | **Compile-Time** (Inside VS Code while you are typing). |
+| **Autocomplete & IntelliSense** | Guesswork; requires memorizing property names. | **100% Autocomplete** for every property and function argument. |
+| **Refactoring Confidence** | Renaming a property might break 10 unseen files. | Renaming a property automatically updates all occurrences. |
+| **Browser Execution** | Native execution in every browser. | **Compiles into pure JavaScript**; browsers do not run TypeScript directly. |
+
+---
+
+### 2. How TypeScript Works: Type Erasure
+
+Browsers like Google Chrome and Safari do **not** understand TypeScript syntax (`: string`, `interface`).
+
+When you build your application using a bundler like **Vite** or the TypeScript compiler (`tsc`):
+1. TypeScript checks all your types for errors.
+2. If there are no errors, it **erases all type annotations** and outputs clean, pure JavaScript.
+3. The browser runs that pure JavaScript with **zero performance penalty**.
+
+```mermaid
+flowchart LR
+    TS["<b>TypeScript (.ts)</b><br/>function add(a: number, b: number): number"] 
+    --> COMPILER["TypeScript Compiler<br/>(Checks types & strips annotations)"] 
+    --> JS["<b>Pure JavaScript (.js)</b><br/>function add(a, b) { return a + b; }"] 
+    --> BROWSER["Browser Executes JS"]
+```
+
+---
+
+## Module 2: Core Type Annotations & Inference
+
+### 1. Basic Primitive Types
+
+To declare a type in TypeScript, add a colon `:` followed by the type name:
 
 ```ts
-// 1. Interface: Best for extensible Object models and public API contracts
-interface BaseEntity {
-  id: string;
-  createdAt: Date;
+// Explicit type annotations:
+const spotName: string = "Terra Kulture";
+const entryFee: number = 2500;
+const isOpen: boolean = true;
+const discountCode: null = null;
+let userRating: undefined = undefined;
+```
+
+---
+
+### 2. Type Inference (Don't Over-Annotate!)
+
+> [!TIP]
+> **Pro Practice:** You do **not** need to write `: string` or `: number` on every single variable! 
+> If you assign an initial value, TypeScript is smart enough to deduce the type automatically. This is called **Type Inference**.
+
+```ts
+// TypeScript automatically knows city is a string:
+let city = "Lagos"; 
+
+// city = 100; // 🔴 ERROR: Type 'number' is not assignable to type 'string'.
+```
+Only write explicit annotations when declaring an empty variable or when TypeScript cannot infer the type.
+
+---
+
+### 3. Array Types
+
+To type an array, take the type of its items and add `[]`:
+
+```ts
+// Array of strings:
+const categories: string[] = ["Food", "Art", "Nightlife"];
+
+// Array of numbers:
+const ratings: number[] = [4.5, 4.8, 3.9, 5.0];
+
+// categories.push(10); // 🔴 ERROR: Argument of type 'number' is not assignable to parameter of type 'string'.
+```
+
+---
+
+## Module 3: Functions with Types
+
+In JavaScript, functions are where most bugs occur because callers can pass whatever arguments they want. In TypeScript, you type both the **parameters** and the **return value**:
+
+```mermaid
+flowchart LR
+    NAME["(fee: number, discount: number)"] --> ARROW[": number"]
+    NAME --> DESC1["Parameter Types<br/>(Guarantees inputs are numbers)"]
+    ARROW --> DESC2["Return Type<br/>(Guarantees output is number)"]
+```
+
+```ts
+// Function with typed parameters and return type:
+function calculateDiscountedFee(fee: number, discountPercentage: number): number {
+  return fee - (fee * discountPercentage) / 100;
 }
 
-interface Spot extends BaseEntity {
+const finalPrice = calculateDiscountedFee(5000, 20); // 4000
+// calculateDiscountedFee("5000", 20); // 🔴 ERROR: Argument of type 'string' is not assignable!
+```
+
+### Optional Parameters & Void Returns
+
+- **Optional Parameters (`?`):** If an argument isn't mandatory, add a `?` before the colon.
+- **`void` Return Type:** If a function does not return a value (e.g., it just logs or updates the DOM), its return type is `void`.
+
+```ts
+function logSpotDetails(name: string, area?: string): void {
+  if (area) {
+    console.log(`📍 ${name} located in ${area}`);
+  } else {
+    console.log(`📍 ${name}`);
+  }
+}
+
+logSpotDetails("Bogobiri", "Ikoyi"); // Valid
+logSpotDetails("Nike Art Gallery");  // Valid (area is optional)
+```
+
+---
+
+## Module 4: Interfaces & Custom Types
+
+### 1. Modeling Data with `interface`
+
+In Week 7, we created Lagos Spot objects with properties like `id`, `name`, `category`, and `fee`. In TypeScript, we define a strict blueprint for our objects using an **`interface`**:
+
+```mermaid
+classDiagram
+    class Spot {
+        +number id
+        +string name
+        +Category category
+        +string area
+        +number fee
+        +string description?
+        +boolean isFavorite?
+    }
+```
+
+```ts
+interface Spot {
+  id: number;
   name: string;
-  category: Category;
+  category: string;
+  area: string;
+  fee: number;
+  description?: string; // Optional property
+  isFavorite?: boolean;  // Optional property
+}
+
+// Now creating a Spot is strictly validated by VS Code:
+const spot1: Spot = {
+  id: 1,
+  name: "Terra Kulture",
+  category: "Food",
+  area: "Victoria Island",
+  fee: 0
+  // description is optional, so omitting it is completely valid!
+};
+```
+
+If you misspell a property or forget a required field, TypeScript highlights it in red immediately!
+
+---
+
+### 2. Union Types & Literal Types
+
+What if `category` shouldn't be *any* random string, but strictly one of four choices: `'Food'`, `'Art'`, `'Nightlife'`, or `'Nature'`?
+
+We use a **Union of String Literals**:
+
+```ts
+// Define the allowed category options:
+type Category = "Food" | "Art" | "Nightlife" | "Nature";
+
+interface SpotWithStrictCategory {
+  id: number;
+  name: string;
+  category: Category; // Must be one of the four allowed strings!
   area: string;
 }
 
-// 2. Type Alias: Essential for Unions, Primitives, Tuples, and Computed Types
-type Category = 'food' | 'study' | 'nightlife' | 'events';
-type Coordinates = [latitude: number, longitude: number]; // Tuple
-type EntityId = string | number;                         // Union
+const goodSpot: SpotWithStrictCategory = {
+  id: 2,
+  name: "Hard Rock Cafe",
+  category: "Nightlife", // 🟢 Valid!
+  area: "VI"
+};
 
-// 3. Declaration Merging (Unique to Interface):
-// Multiple interfaces with the same name automatically merge into one!
-interface UserSettings {
-  theme: 'light' | 'dark';
-}
-interface UserSettings {
-  notifications: boolean;
-}
-// Resulting UserSettings has BOTH theme AND notifications.
+/*
+const badSpot: SpotWithStrictCategory = {
+  id: 3,
+  name: "Random Spot",
+  category: "Shopping", // 🔴 ERROR: Type '"Shopping"' is not assignable to type 'Category'.
+  area: "Lekki"
+};
+*/
 ```
 
 ---
 
-## Module 2: Advanced Type Narrowing & Discriminated Unions
+### 3. `type` vs `interface`: Quick Decision Rule
 
-### 1. Under the Hood: Discriminated (Tagged) Unions
+| Use `interface` for: | Use `type` for: |
+| :--- | :--- |
+| Data objects and models (`Spot`, `User`, `Review`). | Unions (`"Food" \| "Art"`). |
+| Things you might want to extend later with `extends`. | Primitives, Tuples (`[number, number]`), or function signatures. |
 
-A **Discriminated Union** is a pattern that uses a common, literal property (the "discriminant" tag) to allow TypeScript to narrow complex union states with 100% mathematical certainty.
+---
 
-```mermaid
-stateDiagram-v2
-    state "AsyncState<Spot[]>" as State {
-        [*] --> Idle: { status: 'idle' }
-        Idle --> Loading: { status: 'loading' }
-        Loading --> Success: { status: 'success', data: Spot[] }
-        Loading --> ErrorState: { status: 'error', error: string }
-    }
-```
+## Module 5: DOM & Event Typing in the Browser
+
+When working with the browser DOM in TypeScript, elements have specific types:
 
 ```ts
-// src/types.ts
+// 1. querySelector returns HTMLElement | null by default:
+const heading = document.querySelector("h1"); 
 
-// 1. Define explicit state variants with a shared 'status' tag
-export type AsyncState<T> =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'success'; data: T; timestamp: number }
-  | { status: 'error'; errorMessage: string };
+// 2. Form Inputs have properties like .value that general elements don't:
+// Use Type Assertions (as HTMLInputElement) when you know the exact tag:
+const searchInput = document.querySelector("#search-input") as HTMLInputElement;
 
-// 2. Exhaustive state-handling UI renderer
-function renderStateUI(state: AsyncState<Spot[]>): void {
-  const container = document.getElementById('spots-list');
-  if (!container) return;
+console.log(searchInput.value); // TypeScript knows .value exists on HTMLInputElement!
 
-  switch (state.status) {
-    case 'idle':
-      container.innerHTML = '<p>Enter a search query to find Lagos places.</p>';
-      break;
+// 3. Typing Event Listeners:
+searchInput.addEventListener("input", (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  console.log("Typing:", target.value);
+});
 
-    case 'loading':
-      container.innerHTML = '<div class="spinner">Searching live directory...</div>';
-      break;
-
-    case 'success':
-      // TypeScript GUARANTEES state.data exists here!
-      renderSpots(state.data);
-      break;
-
-    case 'error':
-      // TypeScript GUARANTEES state.errorMessage exists here!
-      container.innerHTML = `<div class="error-banner">${state.errorMessage}</div>`;
-      break;
-
-    default: {
-      // Exhaustive checking: If a new status is added to AsyncState,
-      // TypeScript will raise a compile-time error here!
-      const _exhaustiveCheck: never = state;
-      throw new Error(`Unhandled state: ${_exhaustiveCheck}`);
-    }
-  }
-}
+const submitForm = document.querySelector("#add-spot-form") as HTMLFormElement;
+submitForm.addEventListener("submit", (event: SubmitEvent) => {
+  event.preventDefault();
+  console.log("Form submitted!");
+});
 ```
 
 ---
 
-### 2. Custom Type Guards (`value is T`)
+## Module 6: Introduction to Generics (`<T>`)
 
-When receiving un-typed data from `localStorage` or external JSON APIs, TypeScript cannot automatically know if the shape is valid. A **User-Defined Type Guard** bridges the gap between runtime verification and compile-time types:
+> [!NOTE]
+> **The Mental Model:** A **Generic** is like a shipping container or a labeled cardboard box. It doesn't care whether you ship apples, books, or electronics — it securely holds whatever type you place inside it, and keeps track of what type came out.
 
+In TypeScript, `<T>` stands for a **Type Variable**.
+
+### A Practical Generic: Safe `localStorage` Helper
 ```ts
-// Runtime validation function that proves a variable conforms to Spot interface
-export function isSpot(value: unknown): value is Spot {
-  if (typeof value !== 'object' || value === null) {
-    return false;
+// A generic function that safely retrieves and parses stored data of ANY type:
+function getFromStorage<T>(key: string, fallbackValue: T): T {
+  const rawData = localStorage.getItem(key);
+  if (!rawData) {
+    return fallbackValue;
   }
-
-  const candidate = value as Record<string, unknown>;
-
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.area === 'string' &&
-    ['food', 'study', 'nightlife', 'events'].includes(candidate.category as string)
-  );
-}
-
-// Usage when reading from disk:
-export function loadSavedSpots(): Spot[] {
-  const raw = localStorage.getItem('custom_spots');
-  if (!raw) return [];
-
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    
-    // Filters array and narrows type to Spot[] simultaneously!
-    return parsed.filter(isSpot);
-  } catch {
-    return [];
-  }
-}
-```
-
----
-
-## Module 3: Generics & Type-Safe Utility Helpers
-
-### 1. What are Generics?
-
-Generics provide **type variables** (`<T>`) that allow functions, classes, and interfaces to operate over multiple types while preserving strict type safety:
-
-```mermaid
-graph LR
-    Caller["Caller passes type:<br/><code>getStored&lt;Spot[]&gt;('key', [])</code>"] --> Function["Generic Function:<br/><code>function getStored&lt;T&gt;(key, fallback: T): T</code>"]
-    Function --> Result["Output typed strictly as:<br/><code>Spot[]</code> (Autocomplete enabled!)"]
-```
-
-```ts
-// src/storage.ts
-
-/**
- * Generic localStorage retriever with type fallback
- */
-export function getStored<T>(key: string, fallback: T): T {
-  try {
-    const item = localStorage.getItem(key);
-    if (item === null) return fallback;
-    return JSON.parse(item) as T;
-  } catch (err) {
-    console.warn(`Error reading key "${key}" from localStorage:`, err);
-    return fallback;
+    return JSON.parse(rawData) as T;
+  } catch (error) {
+    console.error(`Error parsing ${key}:`, error);
+    return fallbackValue;
   }
 }
 
-// 1. Reading favorite spot string IDs
-const favoriteIds = getStored<string[]>('ls_favorites', []);
+// 1. Reading an array of numbers:
+const savedIds = getFromStorage<number[]>("favorite_ids", []);
+savedIds.push(10); // Fully autocompleted as number[]!
 
-// 2. Reading theme setting
-const savedTheme = getStored<'light' | 'dark'>('ls_theme', 'light');
-
-// 3. Reading full spots cache
-const cachedSpots = getStored<Spot[]>('ls_cached_spots', []);
-```
-
----
-
-## Module 4: Strict Configuration & DOM Casting
-
-### 1. Production `tsconfig.json` Configuration
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-
-    /* Strict Type-Checking Options */
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-
-    /* Additional Lint Checks */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-
-    /* Module Resolution */
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true
-  },
-  "include": ["src"]
+// 2. Reading a user object:
+interface UserProfile {
+  name: string;
+  theme: "light" | "dark";
 }
+
+const userProfile = getFromStorage<UserProfile>("user_pref", { name: "Guest", theme: "light" });
+console.log(userProfile.theme); // Fully autocompleted!
 ```
 
 ---
 
-### 2. Typing DOM Queries & Event Handlers
+## Module 7: Rookie Traps & Debugging Guide
 
-```ts
-// Explicit Element Generic on querySelector
-const spotForm = document.querySelector<HTMLFormElement>('#add-spot-form');
-const searchBox = document.querySelector<HTMLInputElement>('#search-input');
-
-if (searchBox) {
-  // InputEvent typing with type assertion
-  searchBox.addEventListener('input', (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    console.log(`Current query: ${input.value}`);
-  });
-}
-```
-
----
-
-### Common Pitfalls & How to Avoid Them
-
-| Pitfall | Root Cause | Fix |
+| Error Message | What Happened | How to Fix It |
 | :--- | :--- | :--- |
-| **`as unknown as SomeType`** | Forcing unsafe type assertions to bypass compiler errors. | Use proper type guards (`isSpot`) or optional chaining instead of blind casting. |
-| **Using `any` for API responses** | Strips all autocomplete and lets property typos pass unnoticed. | Model the external schema explicitly with optional fields (`NominatimResult`). |
-| **Checking `instanceof Interface`** | Interfaces do not exist at runtime in JavaScript. | Use structural checks with custom type guards (`isSpot(obj)`). |
+| `Type 'string' is not assignable to type 'number'` | You passed text into a parameter expecting a number. | Convert with `Number(val)` or check where the string originated. |
+| `Property 'value' does not exist on type 'Element'` | `querySelector` returned a generic `Element` which does not have `.value`. | Cast it: `document.querySelector('#input') as HTMLInputElement`. |
+| `Object is possibly 'null'` | You tried to access properties on an element that might not exist in the DOM. | Use optional chaining `el?.classList.add()` or an `if (el)` check. |
+| `Property 'xyz' is missing in type '{ ... }'` | You created an object with an interface, but forgot one of the required properties. | Add the missing property, or mark it optional with `?` in the interface. |
 
 ---
 
-### Week 10: Comprehensive Assignment (Milestone: Lagos Spots v1 Complete)
+## 🎯 Week 10 Hands-on Classroom Exercises
 
-**Objective:** Achieve 100% strict-mode TypeScript type safety across the entire Lagos Spots codebase, eliminating all implicit and explicit `any` types, with full interface modeling, generics, and discriminated union UI state handling.
+### Level 1: Basic Typing Warmups
+1. Create a `Student` interface with `id` (number), `name` (string), and `completedWeeks` (number[]).
+2. Create an array `students: Student[]` with at least 3 students.
+3. Write a typed function `getTopStudent(students: Student[]): Student` that returns the student who has completed the most weeks.
 
-**Requirements:**
-1. **Domain Modeling (`src/types.ts`):**
-   - Explicit `Spot` interface and `Category` union type (`'food' | 'study' | 'nightlife' | 'events'`).
-   - `NominatimResult` interface with optional fields representing raw API data.
-   - `AsyncState<T>` discriminated union for async lifecycle state management.
-2. **Generic Utilities:**
-   - Implemented type-safe generic `getStored<T>(key, fallback)` helper.
-3. **Runtime Type Guard:**
-   - Implemented `isSpot(value: unknown): value is Spot` protecting localStorage parsing.
-4. **Strict Compiler Compliance:**
-   - `tsconfig.json` configured with `"strict": true`.
-   - Running `npx tsc --noEmit` returns **0 errors**.
-5. **Git Workflow:**
-   - Developed on branch `feature/typescript-conversion`, merged via Pull Request, and pulled locally.
+### Level 2: Strict Lagos Spots Model
+1. Create a `Category` union type with: `'Food' | 'Art' | 'Music' | 'Nature'`.
+2. Create a `Spot` interface containing: `id`, `name`, `category`, `area`, `fee`, and optional `rating`.
+3. Write a typed function `filterSpotsByCategory(spots: Spot[], category: Category): Spot[]`.
+
+### Level 3: Porting Lagos Spots to TypeScript
+1. In your Vite project, rename `script.js` (or create `src/main.ts`).
+2. Add your `Spot` interface and type your `spots` array.
+3. Type your DOM selectors (`searchInput as HTMLInputElement`, `spotsContainer as HTMLElement`).
+4. Enjoy full editor autocomplete and zero runtime type errors!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [TypeScript Official Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) — The comprehensive guide to types, interfaces, generics, and narrowing.
-- [TypeScript TSConfig Reference](https://www.typescriptlang.org/tsconfig/) — Detailed documentation on all compiler flags including `strict`, `noImplicitAny`, and `exactOptionalPropertyTypes`.
-- [TypeScript Playground](https://www.typescriptlang.org/play) — Interactive compiler sandbox for inspecting emitted JavaScript and TypeScript compiler error codes.
-
-### Recommended Textbooks & Canonical Books
-- **Programming TypeScript: Making Your JavaScript Applications Scale** by Boris Cherny (O'Reilly) — *Deep dive into the type system, subtyping, generics, type-level programming, and error handling.*
-- **Effective TypeScript: 83 Specific Ways to Improve Your TypeScript (2nd Edition)** by Dan Vanderkam (O'Reilly) — *Practical, item-by-item engineering guidelines for writing robust, maintainable TypeScript.*
-- **Tackling TypeScript: Rapid Overview for JavaScript Programmers** by Dr. Axel Rauschmayer — *Clear, concise coverage of modern TypeScript syntax and type mechanics.*
-
-### Interactive Tutorials & Deep Dives
-- [Total TypeScript Tutorials by Matt Pocock](https://www.totaltypescript.com/tutorials) — Free interactive challenges on TypeScript generics, unions, and type transformations.
-- [TypeScript Deep Dive by Basarat Ali Syed](https://basarat.gitbook.io/typescript/) — Open-source guide exploring TypeScript AST, structural typing, and design patterns.
+* [The Valley of Code: TypeScript Tutorial](https://thevalleyofcode.com/typescript/) — Flavio Copes' gentle, beginner-friendly guide to TypeScript.
+* [TypeScript Official Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) — The official guide from the TypeScript team.
+* [TypeScript for JavaScript Programmers](https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes.html) — Fast-track transition guide from JS to TS.
+* [W3Schools: TypeScript Tutorial](https://www.w3schools.com/typescript/) — Interactive beginner exercises and syntax drills.
+* [Total TypeScript (by Matt Pocock)](https://www.totaltypescript.com/) — The best interactive TypeScript tutorials and tips.

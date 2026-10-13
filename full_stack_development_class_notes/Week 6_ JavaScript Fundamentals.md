@@ -1,367 +1,520 @@
 # Week 6: JavaScript Fundamentals
 
-Lagos Spots has semantic structure and Tailwind styling, but it remains a static document. This week marks your transition into **client-side programming**: understanding how the JavaScript engine executes code in memory, how variables and data types behave under the hood, how the scope chain resolves identifiers, and how to drive the UI dynamically from data structures rather than hardcoded HTML.
+Welcome to Week 6! Over the past five weeks, you constructed the visual foundation of **Lagos Spots**: structuring pages with HTML, styling with CSS, crafting responsive layouts with Flexbox and Grid, and streamlining design with Tailwind CSS.
+
+However, up until today, your webpage has been a **static poster**. If a user clicks a button, types into a search bar, or tries to filter spots by category, nothing happens.
+
+This week, you enter the world of programming: **JavaScript**. You will learn how computers think, how to store information in variables, how to perform calculations, how to make decisions with conditionals, and how to create reusable logic with functions.
 
 ---
 
-## Module 1: The JavaScript Runtime & Execution Model
-
-### 1. The Core Terminology of JavaScript
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **ECMAScript (ES)** | The standardized specification for scripting languages (ECMA-262) maintained by TC39. | JavaScript is the concrete implementation of the ECMAScript standard in browsers and Node.js. |
-| **JavaScript Engine (V8, JavaScriptCore, SpiderMonkey)** | The C++ program inside a browser that parses, compiles (JIT), and executes JavaScript code. | Chrome/Edge/Node.js use **V8**; Safari uses **JavaScriptCore**; Firefox uses **SpiderMonkey**. |
-| **Call Stack** | A Last-In, First-Out (LIFO) data structure that tracks active function calls and their execution contexts. | Primitives and stack frames are stored here; stack overflow occurs when recursive calls exceed maximum stack depth. |
-| **Memory Heap** | An unorganized region of memory allocated dynamically for reference types (Objects, Arrays, Functions). | Pointers/references live on the Call Stack, pointing to the heap addresses. |
-| **Execution Context** | An abstract environment containing the evaluated code, its lexical scope, variable bindings, and `this` reference. | A **Global Execution Context** is created on startup; each function call pushes a new **Function Execution Context**. |
-| **Temporal Dead Zone (TDZ)** | The period between entering a block scope and the physical declaration line of a `let` or `const` variable. | Accessing a variable in its TDZ throws a fatal `ReferenceError`. |
-
----
-
-### 2. Under the Hood: How the JavaScript Engine Runs Code
-
-When a script loads in the browser, the JavaScript engine processes it in two distinct phases:
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    Script["JavaScript File Loaded"] --> Phase1["<b>1. Creation Phase (Memory Allocation)</b><br/>• Allocates global/window object<br/>• Hoists function declarations into memory<br/>• Allocates var (initialized to undefined)<br/>• Allocates let / const (uninitialized in TDZ)"]
-    Phase1 --> Phase2["<b>2. Execution Phase (Line-by-Line Run)</b><br/>• Assigns values to variables<br/>• Executes statements & expressions<br/>• Pushes/pops function frames on Call Stack"]
+    M1["<b>Module 1: What is JavaScript?</b><br/>• The brain of the webpage<br/>• How to run JS (Console & script tags)<br/>• Statements, comments, and console.log"]
+    --> M2["<b>Module 2: Variables & Data Types</b><br/>• The labeled box analogy<br/>• let vs const (and why var is legacy)<br/>• Numbers, Strings, Booleans, null & undefined"]
+    --> M3["<b>Module 3: Operators & Expressions</b><br/>• Arithmetic (+, -, *, /, %, **)<br/>• String concatenation vs Template literals<br/>• Comparison (=== vs ==) & Logical (&&, ||, !)"]
+    --> M4["<b>Module 4: Conditionals & Control Flow</b><br/>• if, else if, else<br/>• Truthy vs Falsy values<br/>• Ternary operator & switch statements"]
+    --> M5["<b>Module 5: Repeating Actions with Loops</b><br/>• Why loops? (The tedious typing problem)<br/>• The while loop & the classic for loop<br/>• break and continue (Avoiding infinite loops)"]
+    --> M6["<b>Module 6: Functions & Scope</b><br/>• The recipe / machine analogy<br/>• Parameters vs Arguments<br/>• return vs console.log<br/>• Arrow functions & block scope"]
 ```
+
+---
+
+## Module 1: What is JavaScript & How Does It Run?
+
+### 1. The Three Languages of the Web (Review)
+
+| Technology | Role | Analogy |
+| :--- | :--- | :--- |
+| **HTML** | Content & Structure | The skeleton and bricks |
+| **CSS** | Styling & Visual Presentation | The paint, interior decor, and clothes |
+| **JavaScript** | Behavior, Logic & Interactivity | The brain, muscles, and electrical wiring |
+
+JavaScript allows your webpage to **calculate prices, respond to clicks, validate forms, fetch live data from servers**, and update the screen without reloading.
+
+---
+
+### 2. How to Run JavaScript
+
+You have three easy ways to run JavaScript right now:
+
+#### 1. In the Browser Console (Instant Experimentation):
+Press `F12` (or `Cmd + Option + J` on Mac / `Ctrl + Shift + J` on Windows) in Google Chrome. Click the **Console** tab. Type:
+```js
+console.log("Hello, Lagos!");
+```
+Press **Enter**, and you will see the output immediately!
+
+#### 2. Inside an HTML file (`<script>` tag):
+You can write JavaScript directly inside an HTML file:
+```html
+<script>
+  console.log("Running from inside HTML!");
+</script>
+```
+
+#### 3. In an External File (The Professional Standard):
+Create a file named `script.js` and link it in your `index.html`:
+```html
+<!-- In index.html: place right before closing </body> tag, or use defer in <head> -->
+<script defer src="script.js"></script>
+```
+
+---
+
+### 3. Syntax Rules: Statements, Comments, & Case Sensitivity
+
+```js
+// 1. Single-line comment: The browser ignores this line completely
+
+/* 
+   2. Multi-line comment:
+   Useful for explaining longer logic or temporarily disabling code.
+*/
+
+// 3. Statements end with a semicolon (recommended for clean code):
+console.log("Welcome to Lagos Data School");
+
+// 4. JavaScript is CASE-SENSITIVE:
+let spotName = "Bogobiri";
+let SPOTNAME = "Terra Kulture";
+// These are two completely different variables!
+```
+
+---
+
+## Module 2: Variables & Primitive Data Types
+
+### 1. Variables: The Labeled Box Analogy
+
+> [!NOTE]
+> **The Mental Model:** A **variable** is like a labeled storage box in your room. 
+> 1. You write a label on the box (the variable name).
+> 2. You put something inside it (the value).
+> 3. Whenever you need that item later, you refer to the box by its label.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Stack as Call Stack (LIFO)
-    participant Heap as Memory Heap
-
-    Note over Stack: Global Execution Context Created
-    Stack->>Heap: Allocate object for "spots" data
-    Note over Stack: Push function frame: getVisibleSpots()
-    Note over Stack: Evaluate condition & filter array
-    Note over Stack: Pop function frame: getVisibleSpots()
-    Note over Stack: Push function frame: renderSpots()
-    Stack->>Stack: Update DOM innerHTML
-    Note over Stack: Pop function frame: renderSpots()
+flowchart LR
+    BOX["Box Label: <b>spotName</b><br/>Contents: <b>'Terra Kulture'</b>"]
 ```
+
+In modern JavaScript, there are only two keywords you should use to create variables:
+
+| Keyword | Reassignable? | When to Use |
+| :--- | :--- | :--- |
+| **`const`** | **No** (Constant) | **Default choice!** Use whenever the value shouldn't change (e.g., website name, API URLs, fixed settings). |
+| **`let`** | **Yes** | Use when the value **will change later** (e.g., counters, user input, search query, toggles). |
+| *`var`* | *Legacy* | ⚠️ *Do not use in modern code.* It behaves unpredictably outside block scopes. |
+
+```js
+// Using const for things that stay constant:
+const appName = "Lagos Spots";
+const maxSearchResults = 20;
+
+// appName = "Abuja Spots"; // 🔴 ERROR: Assignment to constant variable!
+
+// Using let for things that change:
+let activeCategory = "All";
+console.log(activeCategory); // "All"
+
+activeCategory = "Food"; // 🟢 Allowed! Value updated
+console.log(activeCategory); // "Food"
+```
+
+#### Variable Naming Rules:
+- Use **camelCase** for variable names (e.g., `spotName`, `userAge`, `isFavorite`).
+- Cannot start with a number (e.g., `let 1stPlace` is illegal).
+- Cannot use reserved words like `let`, `class`, `function`, `return`.
 
 ---
 
-### 3. Script Loading Strategies: `async` vs `defer` vs `type="module"`
+### 2. The 5 Core Primitive Data Types
 
-Placing scripts improperly in `<head>` blocks the HTML tokenizer from building the DOM (**parser blocking**).
-
-```mermaid
-gantt
-    title Browser Script Loading Timeline
-    dateFormat X
-    axisFormat %s
-
-    section Regular Script in Head
-    HTML Parser         :done, 0, 3
-    Download Script     :crit, 3, 6
-    Execute Script      :crit, 6, 8
-    Resume HTML Parser  :done, 8, 12
-
-    section Script Async
-    HTML Parser         :done, 0, 6
-    Download Script     :active, 1, 4
-    Execute Script (Blocks Parser) :crit, 6, 8
-    Resume HTML Parser  :done, 8, 12
-
-    section Script Defer / type="module" (Recommended)
-    HTML Parser         :done, 0, 8
-    Download Script in Background :active, 1, 5
-    Execute Script (After DOM Ready) :crit, 8, 10
-```
-
-- `<script src="app.js">`: **Blocks HTML parsing** while downloading and executing.
-- `<script async src="app.js">`: Downloads in parallel with HTML parsing, but executes the moment download completes (may execute before DOM is fully constructed; unpredictable order).
-- `<script defer src="app.js">` / `<script type="module" src="main.ts">`: **Downloads in parallel without blocking parsing**, and executes strictly in document order *after* the DOM is fully constructed.
-
----
-
-## Module 2: Variables, Types & Memory Allocation
-
-### 1. `const` vs `let` vs `var` (Scope & Hoisting)
-
-| Keyword | Scope Level | Hoisted? | Reassignable? | Redeclarable? | Memory / TDZ Behavior |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **`const`** | **Block `{ }`** | Yes (in TDZ) | **No** (Immutable binding) | **No** | Throws `ReferenceError` if accessed before declaration. Must be initialized immediately. |
-| **`let`** | **Block `{ }`** | Yes (in TDZ) | **Yes** | **No** | Throws `ReferenceError` if accessed before declaration. Ideal for counters/toggles. |
-| **`var`** | **Function / Global** | Yes (to `undefined`) | **Yes** | **Yes** | Leaks out of `if` blocks and `for` loops. Deprecated in modern engineering. |
-
-#### Block Scope Demonstration:
-```ts
-if (true) {
-  var leakedVar = 'I leak into the outer scope!';
-  let scopedLet = 'I only exist within these curly braces!';
-  const scopedConst = 'I also only exist within these braces!';
-}
-
-console.log(leakedVar);   // 'I leak into the outer scope!' (Pollutes scope!)
-// console.log(scopedLet);   // Uncaught ReferenceError: scopedLet is not defined
-// console.log(scopedConst); // Uncaught ReferenceError: scopedConst is not defined
-```
-
----
-
-### 2. Primitive Types vs. Reference Types: The Memory Model
-
-JavaScript has 7 primitive types and 1 complex reference type:
+Every value in JavaScript has a **type**. You can check any value's type using the `typeof` operator:
 
 ```mermaid
 graph TD
-    subgraph Stack["Call Stack (Fixed-Size Memory)"]
-        S1["spotName: 'Terra Kulture' (String)"]
-        S2["rating: 4.8 (Number)"]
-        S3["isOpen: true (Boolean)"]
-        S4["spotRef: &rarr; Pointer: 0x00A1F"]
-    end
-    subgraph Heap["Memory Heap (Dynamic Dynamic Memory)"]
-        H1["Address: 0x00A1F<br/>Object: {<br/>  name: 'Terra Kulture',<br/>  category: 'food',<br/>  tags: ['art', 'dining']<br/>}"]
-    end
-    S4 -.-> H1
+    PRIMITIVES["Primitive Data Types"]
+    PRIMITIVES --> STR["<b>String</b><br/>'Terra Kulture', 'Lagos'"]
+    PRIMITIVES --> NUM["<b>Number</b><br/>42, 3.14, -10"]
+    PRIMITIVES --> BOOL["<b>Boolean</b><br/>true, false"]
+    PRIMITIVES --> UNDEF["<b>undefined</b><br/>Variable created, but no value assigned"]
+    PRIMITIVES --> NULL["<b>null</b><br/>Deliberately empty value"]
 ```
 
-1. **Primitives (Stored directly on Call Stack, passed by value):**
-   - `string`: Textual data (`'Lagos'`).
-   - `number`: 64-bit double precision floating point (`42`, `3.14`).
-   - `boolean`: `true` or `false`.
-   - `undefined`: Variable declared, but no value assigned yet (engine default).
-   - `null`: Intentional absence of any object value.
-   - `bigint`: Arbitrary precision integer (`9007199254740991n`).
-   - `symbol`: Unique, immutable identifier (`Symbol('id')`).
-2. **Reference Types (Stored on Heap, pointer on Call Stack, passed by reference):**
-   - `Object`, `Array`, `Function`, `Date`, `Map`, `Set`.
+#### 1. String (Text):
+Enclosed in single quotes `'...'`, double quotes `"..."`, or backticks `` `...` ``:
+```js
+const city = "Lagos";
+const neighborhood = 'Yaba';
+console.log(typeof city); // "string"
+```
 
----
+#### 2. Number (Integers & Decimals):
+JavaScript uses a single type for all numbers (whole numbers and decimals):
+```js
+const rating = 4.8;
+const entryFee = 2500;
+console.log(typeof rating); // "number"
+```
 
-### 3. Under the Hood: Type Coercion & Equality
+#### 3. Boolean (True or False):
+Only two possible values: `true` or `false`. Essential for making decisions:
+```js
+const isOpen = true;
+const isFree = false;
+console.log(typeof isOpen); // "boolean"
+```
 
-#### Truthy vs. Falsy Values:
-JavaScript implicitly coerces values to booleans in conditionals (`if (val)`). There are exactly **8 falsy values**:
-- `false`, `0`, `-0`, `0n`, `""` (empty string), `null`, `undefined`, `NaN`.
-- *Everything else is truthy*, including `[]` (empty array), `{}` (empty object), `"0"`, and `"false"`.
+#### 4. `undefined` vs `null` (The Empty Values):
+> [!TIP]
+> - **`undefined`**: The browser's default for "a box that exists, but nothing was ever placed in it yet."
+> - **`null`**: The developer explicitly saying "this box is intentionally empty."
 
-#### Strict Equality (`===`) vs Loose Equality (`==`):
-- `===` (**Strict Equality**): Compares **Value AND Type**. No type conversion occurs.
-- `==` (**Loose Equality**): Performs **Implicit Type Coercion** before comparing. Leads to erratic bugs:
-  - `0 == ""` $\to$ `true` (Both coerced to number `0`).
-  - `false == "0"` $\to$ `true`.
-  - `null == undefined` $\to$ `true`.
-  - `0 === ""` $\to$ `false` (Number vs String). Always use `===`.
+```js
+let phoneNumber; 
+console.log(phoneNumber); // undefined (declared without a value)
 
-#### Logical OR (`||`) vs. Nullish Coalescing (`??`):
-- `||` returns the right-hand operand if the left is **any falsy value** (`false`, `0`, `""`, `null`, `undefined`).
-- `??` returns the right-hand operand **ONLY if the left is `null` or `undefined`**.
-
-```ts
-// Scenario: A free Lagos spot with ticket price of 0 Naira
-const admissionFee = 0;
-
-const fallbackWithOR = admissionFee || 1500; // WRONG! 0 is falsy, returns 1500
-const fallbackWithNullish = admissionFee ?? 1500; // CORRECT! 0 is valid, returns 0
-
-console.log(fallbackWithOR);      // 1500 (Incorrectly charges free spots)
-console.log(fallbackWithNullish); // 0    (Correctly preserves 0)
+let selectedSpot = null; // Deliberately set to "nothing" until user picks a spot
+console.log(selectedSpot); // null
 ```
 
 ---
 
-## Module 3: Functions, Scope & Closures
+## Module 3: Operators & Expressions
 
-### 1. Function Types: Declarations vs Expressions vs Arrow Functions
+### 1. Arithmetic Operators
+```js
+const price = 5000;
+const vat = 375;
 
-```ts
-// 1. Function Declaration (Hoisted to top of scope; has own 'this')
-function calculateDistance(x1: number, y1: number, x2: number, y2: number): number {
-  return Math.hypot(x2 - x1, y2 - y1);
+console.log(price + vat); // 5375 (Addition)
+console.log(price - 1000); // 4000 (Subtraction)
+console.log(price * 2);    // 10000 (Multiplication)
+console.log(price / 2);    // 2500 (Division)
+console.log(10 % 3);       // 1 (Remainder / Modulo: 10 divided by 3 has 1 left over)
+console.log(2 ** 3);       // 8 (Exponentiation: 2 raised to the power of 3)
+```
+
+---
+
+### 2. Strings: Concatenation vs Template Literals
+
+In older JavaScript, you joined strings with `+` (concatenation). In modern JavaScript, you use **Template Literals** with backticks `` ` `` and `${expression}`:
+
+```js
+const spotName = "Nike Art Gallery";
+const area = "Lekki";
+
+// 🔴 Old way (clunky and easy to miss spaces):
+const oldMessage = spotName + " is located in " + area + ".";
+
+// 🟢 Modern Template Literals (Clean & Powerful):
+const message = `${spotName} is located in ${area}.`;
+console.log(message); // "Nike Art Gallery is located in Lekki."
+
+// You can even calculate inside ${}:
+const ticketPrice = 1500;
+console.log(`Two tickets cost ₦${ticketPrice * 2}`); // "Two tickets cost ₦3000"
+```
+
+---
+
+### 3. Comparison Operators (The Strict Equality Rule)
+
+When comparing values, JavaScript produces a boolean (`true` or `false`):
+
+```js
+const age = 20;
+
+console.log(age > 18);  // true
+console.log(age >= 21); // false
+console.log(age < 50);  // true
+```
+
+#### Strict (`===`) vs Loose (`==`):
+> [!CAUTION]
+> Always use **Strict Equality (`===`)** and **Strict Inequality (`!==`)**.
+> - `===` checks both **Value AND Type**.
+> - `==` converts types behind your back (coercion), causing bizarre bugs!
+
+```js
+// The Danger of Loose Equality (==):
+console.log(5 == "5");   // true (Number coerced to string!)
+console.log(0 == "");    // true (Both converted to 0!)
+console.log(false == 0); // true
+
+// The Safety of Strict Equality (===):
+console.log(5 === "5");  // false (Number is not String!)
+console.log(0 === "");   // false
+console.log(5 !== "5");  // true
+```
+
+---
+
+### 4. Logical Operators: `&&`, `||`, and `!`
+
+| Operator | Name | Rule | Example |
+| :--- | :--- | :--- | :--- |
+| **`&&`** | **AND** | `true` only if **BOTH** sides are true. | `isWeekend && isSunny` |
+| **`\|\|`** | **OR** | `true` if **AT LEAST ONE** side is true. | `isHoliday \|\| isWeekend` |
+| **`!`** | **NOT** | Flips boolean: `!true` becomes `false`. | `!isOpen` |
+
+```js
+const hasTicket = true;
+const isVip = false;
+
+// AND: Must have ticket AND be VIP
+console.log(hasTicket && isVip); // false
+
+// OR: Needs either a ticket OR VIP pass
+console.log(hasTicket || isVip); // true
+
+// NOT: Negation
+console.log(!hasTicket); // false
+```
+
+---
+
+## Module 4: Conditionals & Control Flow
+
+### 1. `if`, `else if`, and `else`
+
+Conditionals allow your program to make decisions:
+
+```js
+const budget = 4000;
+
+if (budget >= 10000) {
+  console.log("You can visit a luxury restaurant in Ikoyi!");
+} else if (budget >= 3000) {
+  console.log("You can enjoy great food and arts at Terra Kulture!");
+} else {
+  console.log("Visit Freedom Park for a budget-friendly stroll!");
+}
+```
+
+---
+
+### 2. Truthy and Falsy Values
+
+In JavaScript, any value can be evaluated inside an `if` condition. JavaScript converts values to booleans automatically:
+
+There are only **8 Falsy values** in JavaScript. Memorize them:
+1. `false`
+2. `0`
+3. `-0`
+4. `""` (empty string)
+5. `null`
+6. `undefined`
+7. `NaN` (Not a Number)
+8. `0n` (BigInt zero)
+
+**Everything else is Truthy!** Even `[]` (empty array) and `{}` (empty object) are truthy.
+
+```js
+const searchInput = ""; // Empty string is falsy
+
+if (searchInput) {
+  console.log("Searching for:", searchInput);
+} else {
+  console.log("Please enter a search term!"); // This runs!
+}
+```
+
+---
+
+### 3. The Ternary Operator (`? :`)
+
+A clean, 1-line shortcut for simple `if/else` decisions:
+```js
+// Syntax: condition ? valueIfTrue : valueIfFalse
+
+const entryFee = 0;
+const label = entryFee === 0 ? "Free Entry" : `₦${entryFee}`;
+
+console.log(label); // "Free Entry"
+```
+
+---
+
+## Module 5: Repeating Actions with Loops
+
+### 1. Why Do We Need Loops?
+
+Imagine you have 10 spots to display on the page. Without loops, you would have to write 10 copy-pasted lines. Loops allow you to **repeat an action until a condition is met**.
+
+---
+
+### 2. The Classic `for` Loop
+
+A `for` loop has 3 parts separated by semicolons:
+`for (initialization; condition; increment)`
+
+```mermaid
+flowchart TD
+    START["1. let i = 1 (Start counter)"] --> CHECK{"2. i &le; 5?<br/>(Check condition)"}
+    CHECK -->|Yes| RUN["3. Execute code block"]
+    RUN --> STEP["4. i++ (Increment counter)"]
+    STEP --> CHECK
+    CHECK -->|No| DONE["Loop Ends"]
+```
+
+```js
+// Count from 1 to 5:
+for (let i = 1; i <= 5; i++) {
+  console.log(`Spot #${i}`);
+}
+```
+
+---
+
+### 3. The `while` Loop
+
+Best used when you don't know in advance how many times you need to loop:
+```js
+let ticketsRemaining = 3;
+
+while (ticketsRemaining > 0) {
+  console.log(`Ticket sold! Remaining: ${ticketsRemaining}`);
+  ticketsRemaining--; // Decrease by 1 each time
 }
 
-// 2. Function Expression (Not hoisted; stored in variable)
-const calculateDistanceExp = function(x1: number, y1: number, x2: number, y2: number): number {
-  return Math.hypot(x2 - x1, y2 - y1);
+console.log("Sold out!");
+```
+
+> [!WARNING]
+> **The Infinite Loop Trap:** Always ensure the loop variable changes! If you forget `ticketsRemaining--`, the condition will stay `true` forever and freeze your browser tab!
+
+---
+
+## Module 6: Functions & Scope
+
+### 1. What is a Function? (The Recipe Analogy)
+
+> [!NOTE]
+> **The Mental Model:** A function is a reusable kitchen recipe or machine.
+> 1. You give it **ingredients** (inputs, called **parameters**).
+> 2. It follows a set of **instructions** (the function body).
+> 3. It produces a **finished meal** (output, called the **return value**).
+
+```mermaid
+flowchart LR
+    INPUT["Inputs / Parameters:<br/>(price, quantity)"] --> FUNC["Function Machine:<br/>calculateTotal"] --> OUTPUT["Output / Return:<br/>price * quantity"]
+```
+
+---
+
+### 2. Function Declarations vs Calling a Function
+
+```js
+// 1. Defining (Declaring) the function:
+function calculateTotalPrice(ticketPrice, quantity) {
+  const total = ticketPrice * quantity;
+  return total; // Sends the result back to whoever called the function
+}
+
+// 2. Invoking (Calling) the function with real values (arguments):
+const order1 = calculateTotalPrice(2500, 2);
+console.log(`Total: ₦${order1}`); // "Total: ₦5000"
+
+const order2 = calculateTotalPrice(1500, 4);
+console.log(`Total: ₦${order2}`); // "Total: ₦6000"
+```
+
+> [!IMPORTANT]
+> **`return` vs `console.log`:**
+> - `console.log()` only prints text to the screen for you to see. It does **not** give the value back to the rest of your program.
+> - `return` actually hands the value back so you can store it in a variable or use it in further calculations.
+
+---
+
+### 3. Arrow Functions (Modern ES6+ Syntax)
+
+In modern web development, you will see **Arrow Functions** (`=>`) everywhere:
+
+```js
+// Traditional Function Declaration:
+function add(a, b) {
+  return a + b;
+}
+
+// Modern Arrow Function:
+const addArrow = (a, b) => {
+  return a + b;
 };
 
-// 3. Arrow Function (Concise syntax; lexically binds 'this'; modern standard)
-const calculateDistanceArrow = (x1: number, y1: number, x2: number, y2: number): number =>
-  Math.hypot(x2 - x1, y2 - y1);
+// Concise Arrow Function (Implicit return if 1 single line):
+const addShort = (a, b) => a + b;
+
+console.log(addShort(10, 20)); // 30
 ```
 
 ---
 
-### 2. Under the Hood: Lexical Scope & The Scope Chain
+### 4. Scope: Global vs Block Scope
 
-JavaScript uses **Lexical (Static) Scoping**: variable resolution is determined by the physical location of the code in the file, not where a function is called.
+> [!TIP]
+> **The Rooms Analogy:** Variables declared inside `{}` curly braces are like items inside a private bedroom. People outside in the hallway cannot see or touch them!
 
-```mermaid
-graph TD
-    GlobalScope["<b>Global Scope</b><br/>• spots: Array<br/>• activeCategory: 'food'"]
-    ParentScope["<b>Outer Function Scope:</b> filterPlaces()<br/>• query: 'Yaba'"]
-    InnerScope["<b>Inner Arrow Scope:</b> (spot) => ...<br/>• spot: Object"]
+```js
+const globalCity = "Lagos"; // Global Scope: Accessible everywhere
 
-    InnerScope -->|"1. Looks for identifier"| ParentScope
-    ParentScope -->|"2. Not found, traverses up"| GlobalScope
-```
-
-When a variable is evaluated:
-1. The engine checks the **Current Local Scope**.
-2. If not found, it traverses outward to the **Parent Lexical Scope**.
-3. It continues up the **Scope Chain** until it reaches the **Global Scope**.
-4. If still not found, it throws a `ReferenceError`.
-
----
-
-## Module 4: Data-Driven UI Rendering
-
-### 1. The Spot Data Model & Rendering Logic
-
-Instead of hardcoding 50 cards in HTML, we store spots as an array of data objects and write a pure rendering function:
-
-```ts
-// src/main.ts
-
-// 1. Define the Spot data structure
-interface Spot {
-  id: string;
-  name: string;
-  category: 'food' | 'study' | 'nightlife' | 'events';
-  area: string;
-  description: string;
-  imageUrl: string;
+if (true) {
+  const localSpot = "Terra Kulture"; // Block Scope: Only exists inside this { }
+  console.log(globalCity); // "Lagos" (Can see outside!)
+  console.log(localSpot);  // "Terra Kulture"
 }
 
-// 2. Define the source dataset
-const spots: Spot[] = [
-  {
-    id: 'terra-kulture',
-    name: 'Terra Kulture',
-    category: 'food',
-    area: 'Victoria Island',
-    description: 'Art gallery, authentic Nigerian restaurant, and live theatre performance hall.',
-    imageUrl: '/assets/terra-kulture.jpg',
-  },
-  {
-    id: 'bogobiri',
-    name: 'Bogobiri House',
-    category: 'events',
-    area: 'Ikoyi',
-    description: 'Boutique hotel, African art gallery, open-mic poetry, and live Afrobeat music hub.',
-    imageUrl: '/assets/bogobiri.jpg',
-  },
-  {
-    id: 'workstation',
-    name: 'Workstation Bar Beach',
-    category: 'study',
-    area: 'Victoria Island',
-    description: 'High-speed internet co-working hub with uninterrupted power and coffee bar.',
-    imageUrl: '/assets/workstation.jpg',
-  },
-  {
-    id: 'hard-rock',
-    name: 'Hard Rock Cafe',
-    category: 'nightlife',
-    area: 'Oniru',
-    description: 'Beachfront American diner with rock memorabilia, live DJ sets, and cocktail lounge.',
-    imageUrl: '/assets/hardrock.jpg',
-  },
-];
-
-// 3. Pure filtering function
-function getVisibleSpots(allSpots: Spot[], selectedCategory: string): Spot[] {
-  if (selectedCategory === 'all') {
-    return allSpots;
-  }
-  return allSpots.filter((spot) => spot.category === selectedCategory);
-}
-
-// 4. DOM Rendering function
-function renderSpots(spotsToRender: Spot[]): void {
-  const container = document.getElementById('spots-list');
-  if (!container) return;
-
-  if (spotsToRender.length === 0) {
-    container.innerHTML = `
-      <div class="col-span-full py-12 text-center text-slate-500">
-        <p class="text-lg font-medium">No spots found in this category.</p>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = spotsToRender
-    .map(
-      (spot) => `
-      <article class="flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all" id="${spot.id}">
-        <div class="flex justify-between items-start gap-2 mb-3">
-          <h3 class="text-lg font-bold text-slate-900 dark:text-white">${spot.name}</h3>
-          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 capitalize">
-            ${spot.category}
-          </span>
-        </div>
-        <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">📍 ${spot.area}</p>
-        <p class="text-sm text-slate-600 dark:text-slate-300 flex-grow mb-4">${spot.description}</p>
-        <button class="w-full py-2 px-4 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors">
-          View Details
-        </button>
-      </article>
-    `
-    )
-    .join('');
-}
-
-// Initial page render
-renderSpots(spots);
+console.log(globalCity); // "Lagos"
+// console.log(localSpot); // 🔴 ReferenceError: localSpot is not defined!
 ```
 
 ---
 
-### 2. Common Pitfalls & How to Avoid Them
+## Module 7: Rookie Traps & Debugging Guide
 
-| Pitfall | Cause | Solution |
+| Error Message | What Happened | How to Fix It |
 | :--- | :--- | :--- |
-| `Uncaught TypeError: Cannot set properties of null (setting 'innerHTML')` | Script ran before the DOM element `#spots-list` existed in the DOM. | Use `<script type="module" defer>` in `<head>` and check `if (!container) return;`. |
-| `Uncaught ReferenceError: X is not defined` (TDZ violation) | Attempted to use a `let` or `const` variable before its line of declaration. | Declare variables at the top of their enclosing scope block. |
-| Coercion bugs with `==` | `0 == ""` evaluates to `true`. | Always configure ESLint rule `eqeqeq: ["error", "always"]` to enforce `===`. |
-| Floating point arithmetic inaccuracy | `0.1 + 0.2` equals `0.30000000000000004` due to IEEE-754 binary floating-point representation. | Store financial currency amounts in minor units (e.g., Kobo or Cents as integers) rather than fractional Naira/Dollars. |
+| `ReferenceError: spotName is not defined` | You tried to use a variable before creating it, or misspelled its name. | Check spelling, make sure it was declared with `let` or `const` in accessible scope. |
+| `TypeError: Assignment to constant variable` | You tried to reassign a variable created with `const`. | If the value needs to change, change `const` to `let`. |
+| `SyntaxError: Unexpected token` | You missed a comma, closing bracket `}`, or quotation mark. | Look at the line number in the console and verify matching quotes and brackets. |
+| String Math Surprise: `"5" + 2` equals `"52"` | The `+` operator with any string joins them together instead of adding. | Convert strings to numbers first using `Number("5") + 2`. |
 
 ---
 
-### Week 6: Comprehensive Assignment
+## 🎯 Week 6 Hands-on Classroom Exercises
 
-**Objective:** Transform Lagos Spots into a data-driven client-side application where the spot directory renders dynamically from structured data models, featuring clean scope boundaries and strict equality filtering.
+### Level 1: Variable & Operator Drills
+1. Create a `const` variable for your favorite place in Lagos.
+2. Create a `let` variable for the entrance fee.
+3. Use a template literal to log: `"Visiting [place] costs ₦[fee]."`
+4. Reassign the fee to a discounted price and log it again.
 
-**Requirements:**
-1. **Module Linking & Tooling:**
-   - `main.ts` linked via `<script type="module" defer src="/src/main.ts">`.
-   - ESLint and Prettier enabled with zero warnings on `==` or unused variables.
-2. **Data Structure:**
-   - Defined `Spot` data model interface.
-   - Initialized `spots` array containing at least 5 complete spot objects across multiple Lagos areas (VI, Ikoyi, Yaba, Lekki).
-3. **Data-Driven Rendering:**
-   - `renderSpots(spots)` generates HTML dynamically via array transformation and DOM insertion.
-   - All hardcoded `.spot-card` HTML removed from `index.html`.
-4. **Pure Filtering Function:**
-   - Implemented `getVisibleSpots(allSpots, category)` with strict equality `===`.
-   - Tested filtering logic for `'all'`, `'food'`, `'study'`, `'nightlife'`, `'events'`.
-5. **Git Workflow:**
-   - Developed on branch `feature/js-data-rendering`, merged via Pull Request, and pulled locally.
+### Level 2: Conditionals & Decision Making
+Write a function `checkAdmission(age, fee)`:
+- If age is under 5, return `"Free for children!"`
+- If fee is 0, return `"Free entry for everyone!"`
+- Otherwise, return `"Admission fee is ₦[fee]."`
+
+### Level 3: Loops & Lagos Spots Array Renderer
+1. Create an array of 4 spot names: `["Terra Kulture", "Bogobiri", "Nike Art Gallery", "Freedom Park"]`.
+2. Write a `for` loop that logs:
+   `"1. Terra Kulture"`
+   `"2. Bogobiri"`
+   `"3. Nike Art Gallery"`
+   `"4. Freedom Park"`
+3. Write an arrow function `formatSpot(name, index)` that takes a name and index and returns the formatted string.
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [MDN Web Docs: JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) — Comprehensive guide to core language syntax, types, closures, and control flow.
-- [ECMA-262 ECMAScript Language Specification](https://tc39.es/ecma262/) — The official language specification maintained by the TC39 committee.
-- [MDN Web Docs: Equality Comparisons and Sameness](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness) — Exhaustive matrix of `===`, `==`, and `Object.is()`.
-
-### Recommended Textbooks & Canonical Books
-- **Eloquent JavaScript (4th Edition)** by Marijn Haverbeke (No Starch Press) — *Chapters 1–4: Values, Types, Operators, Program Structure, Functions, and Data Structures.* (Available free online at `eloquentjavascript.net`).
-- **You Don't Know JS Yet: Get Started & Scope and Closures** by Kyle Simpson — *Deep dive into the JavaScript compiler, Execution Contexts, Lexical Scope, and Hoisting/TDZ.*
-- **JavaScript: The Definitive Guide (7th Edition)** by David Flanagan (O'Reilly) — *The industry-standard reference manual for core JavaScript language semantics.*
-
-### Deep Dives & Interactive Tutorials
-- [JavaScript.info: The Modern JavaScript Tutorial (Part 1)](https://javascript.info/) — Clear visual explanations of data types, memory references, and functions.
-- [V8 Engine Blog](https://v8.dev/blog) — Insights into V8 execution contexts, Ignition bytecode, and TurboFan optimizations.
+* [JavaScript.info: Hello, world!](https://javascript.info/hello-world) — The gentlest, clearest starting point for JavaScript beginners.
+* [JavaScript.info: Variables](https://javascript.info/variables) — Deep dive into `let`, `const`, and naming conventions.
+* [JavaScript.info: Data Types](https://javascript.info/types) — Visual explanations of strings, numbers, booleans, and null/undefined.
+* [The Valley of Code: JavaScript Basics](https://thevalleyofcode.com/javascript/) — Flavio Copes' friendly handbook on variables, operators, and loops.
+* [The Valley of Code: Functions](https://thevalleyofcode.com/javascript/functions) — Plain-English guide to functions and arrow syntax.
+* [MDN Web Docs: JavaScript First Steps](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps) — Mozilla's beginner guide to JavaScript mechanics.

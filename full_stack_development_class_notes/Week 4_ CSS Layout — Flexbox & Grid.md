@@ -1,10 +1,43 @@
 # Week 4: CSS Layout — Flexbox & Grid
 
-In Week 3, you styled individual components in isolation. However, every element still stacks vertically in the browser's default document flow. This week, you take complete control of **multi-dimensional layout**: building a flexible navigation bar, aligning components precisely within cards using **Flexbox (1D Layout)**, creating an auto-responsive directory grid with **CSS Grid (2D Layout)**, and orchestrating responsive breakpoints with a **Mobile-First** architecture.
+Welcome to Week 4! In Week 3, you styled individual buttons, cards, and headings. But if you open your webpage right now, every single element stacks vertically on top of each other like a shopping receipt.
+
+To create modern websites, you need to control layout: putting a logo on the left and a menu on the right, arranging cards in a 3-column responsive grid, and making sure the page looks gorgeous on an iPhone as well as a large monitor.
+
+This week, you master the two layout systems of modern web development: **Flexbox (1-Dimensional)** and **CSS Grid (2-Dimensional)**.
 
 ---
 
-## Module 1: Flexbox — One-Dimensional Layout
+## Pedagogical Roadmap
+
+```mermaid
+flowchart TD
+    M1["<b>Module 1: The Layout Decision Model</b><br/>• Are you laying out 1 direction or 2 directions?<br/>• Flexbox (1D: Rows OR Columns) vs Grid (2D: Rows AND Columns)"]
+    --> M2["<b>Module 2: Flexbox Mastery</b><br/>• Container vs Items<br/>• Main Axis (justify-content) vs Cross Axis (align-items)<br/>• The gap property (no more margin hacks!)<br/>• Building the Lagos Spots navbar"]
+    --> M3["<b>Module 3: CSS Grid Mastery</b><br/>• Defining columns with fr units<br/>• repeat() and minmax()<br/>• Zero-media-query responsive card grid"]
+    --> M4["<b>Module 4: Mobile-First Responsive Design</b><br/>• Media queries (@media)<br/>• Testing on mobile with Chrome DevTools Device Mode"]
+```
+
+---
+
+## Module 1: The Layout Decision Model
+
+### 1. Flexbox vs. CSS Grid: When to Use Which?
+
+> [!NOTE]
+> **The Mental Model:**
+> - **Flexbox is 1-Dimensional:** It arranges items in **one single direction** at a time (either along a horizontal row OR a vertical column). Perfect for navbars, button groups, and aligning badges inside a card.
+> - **CSS Grid is 2-Dimensional:** It arranges items across **both rows AND columns simultaneously**. Perfect for page-wide grids, photo galleries, and card directories like Lagos Spots!
+
+```mermaid
+flowchart TD
+    Q{Laying out one dimension<br/>or two?} -->|One row or column| FLEX["<b>Use Flexbox</b><br/>• Navbars<br/>• Title + Badge rows<br/>• Centering a button"]
+    Q -->|Both rows AND columns| GRID["<b>Use CSS Grid</b><br/>• Responsive directory of cards<br/>• Dashboard widget layouts"]
+```
+
+---
+
+## Module 2: Flexbox — One-Dimensional Layout
 
 ### 1. The Core Terminology of Flexbox
 

@@ -1,450 +1,337 @@
 # Week 15: Node.js, Express & REST API Design
 
-Up to this point, all application logic has executed client-side in the browser. This week marks your transition to **Backend Engineering**: writing server-side JavaScript/TypeScript using **Node.js** and **Express**. We introduce a brand-new, production-grade project that will carry the entire backend curriculum: **Flowboard** — a collaborative Trello-style project management API. You will master **RESTful API Architecture**, the **Express Middleware Pipeline (The Onion Model)**, **HTTP Verbs & Idempotency**, and a clean **3-Tier Layered Architecture (Controller $\leftrightarrow$ Service $\leftrightarrow$ Model)**.
+Welcome to Week 15 and welcome to **Part IV: Backend & Full-Stack Development**!
+
+Up until now, all of your code has executed **client-side in the browser**. When you saved favorites in Lagos Spots, they were stored in that single browser's `localStorage`. If you opened the site on another laptop or a phone, your saved places were gone!
+
+To build real products — where multiple users can register, collaborate, create shared data, and access it from any device — you need a **Backend Server** and a **Database**.
+
+This week, we introduce our second major running project: **Flowboard** — a collaborative, Trello-style project management API. You will learn how to run JavaScript on the server with **Node.js**, build lightning-fast web APIs with **Express**, and design clean **RESTful endpoints**.
 
 ---
 
-## Module 1: Node.js Runtime & Express Architecture
-
-### 1. The Core Terminology of Server-Side Engineering
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Node.js Runtime** | An open-source, cross-platform JavaScript runtime built on Chrome's V8 engine and `libuv`. | Allows JavaScript to run on servers with direct access to the Operating System, filesystem, TCP sockets, and databases. |
-| **`libuv`** | A C library powering Node.js that provides an asynchronous event loop and thread pool for non-blocking I/O operations. | Handles disk I/O, DNS lookups, and network socket communication on background OS threads. |
-| **REST (Representational State Transfer)** | An architectural style for networked applications using stateless, client-server communication and standard HTTP methods over resource URIs. | Resources are nouns (e.g., `/api/v1/boards`), and actions are expressed via HTTP verbs (`GET`, `POST`, `PATCH`, `DELETE`). |
-| **Idempotency** | A property of an HTTP method where making the same request multiple times produces the exact same server state as making it once. | `GET`, `PUT`, `DELETE`, and `HEAD` are idempotent; `POST` is **non-idempotent**. |
-| **Middleware** | A pipeline of functions in Express with access to the Request (`req`), Response (`res`), and next middleware function (`next()`). | Executes tasks like logging, authentication, request body parsing, and input validation. |
-
----
-
-### 2. Under the Hood: HTTP Verbs, Status Codes & Idempotency Matrix
-
-| HTTP Method | CRUD Operation | Idempotent? | Safe? (Read-Only) | Standard Success Status | Standard Error Statuses |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **`GET`** | **R**ead | **Yes** | **Yes** | `200 OK` | `404 Not Found` |
-| **`POST`** | **C**reate | **No** (Creates new resource on each call) | **No** | `201 Created` | `400 Bad Request`, `422 Unprocessable` |
-| **`PUT`** | **U**pdate (Complete Replacement) | **Yes** | **No** | `200 OK` / `204 No Content` | `400`, `404` |
-| **`PATCH`** | **U**pdate (Partial Modification) | **No** / **Yes** (Depends on payload) | **No** | `200 OK` | `400`, `404` |
-| **`DELETE`** | **D**elete | **Yes** (Repeated delete results in resource gone) | **No** | `200 OK` / `204 No Content` | `404 Not Found` |
-
----
-
-### 3. Under the Hood: The Express Middleware Onion Pipeline
-
-Express processes incoming HTTP requests sequentially through a pipeline of middleware functions. Each function can modify `req` or `res`, terminate the request, or pass control along via `next()`:
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    ClientReq["Incoming HTTP Request<br/>POST /api/v1/boards"] --> M1["<b>1. Morgan / Logger Middleware</b><br/>Logs method, path, timestamp"]
-    M1 -->|"next()"| M2["<b>2. express.json() Body Parser</b><br/>Reads stream & populates req.body"]
-    M2 -->|"next()"| M3["<b>3. CORS Middleware</b><br/>Sets Access-Control-Allow-Origin"]
-    M3 -->|"next()"| M4["<b>4. Route Router (/api/v1/boards)</b><br/>Matches path and HTTP verb"]
-    M4 -->|"next()"| M5["<b>5. Controller Handler</b><br/>Validates & calls Service"]
-    M5 -->|"res.status(201).json(...)"| ClientRes["HTTP 201 Response Sent to Client"]
-
-    M5 -.->|"next(err) on Exception"| ErrM["<b>Global Error Middleware</b><br/>(err, req, res, next) &rarr; 500 JSON"]
-    ErrM -.-> ClientRes
-```
-
-> [!CAUTION]
-> **The Hanging Request Bug:** If a middleware function does **not** call `next()` and does **not** send a response (e.g. `res.send()` or `res.json()`), the HTTP connection remains open until the client times out!
-
----
-
-## Module 2: Scaffolding the Flowboard API
-
-### 1. Project Initialization with TypeScript and `tsx`
-
-```bash
-# 1. Create project directory and package.json
-mkdir flowboard-api && cd flowboard-api
-npm init -y
-
-# 2. Install production runtime dependencies
-npm install express cors dotenv
-
-# 3. Install developer tooling & TypeScript definitions
-npm install -D typescript tsx @types/node @types/express @types/cors
-```
-
-#### `tsconfig.json` Setup:
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src/**/*"]
-}
-```
-
-#### `package.json` Scripts:
-```json
-"scripts": {
-  "dev": "tsx watch src/index.ts",
-  "build": "tsc",
-  "start": "node dist/index.js"
-}
+    M1["<b>Module 1: What is a Backend Server?</b><br/>• Frontend (Storefront) vs Backend (Kitchen & Vault)<br/>• What is Node.js? (Running JS without a browser)<br/>• Your first 10-line Express server"]
+    --> M2["<b>Module 2: Testing APIs with Postman / Thunder Client</b><br/>• Why browsers can only test GET requests<br/>• Making POST, PUT, DELETE requests<br/>• Inspecting status codes (200, 201, 404, 500)"]
+    --> M3["<b>Module 3: REST API Architecture</b><br/>• Resources are nouns (/api/boards)<br/>• Verbs are actions (GET, POST, PATCH, DELETE)<br/>• Request params (:id), query strings (?search=), and body"]
+    --> M4["<b>Module 4: Express Middleware (The Assembly Line)</b><br/>• The Security Checkpoint mental model<br/>• express.json() (Why req.body is undefined without it)<br/>• CORS (Connecting frontend to backend)"]
+    --> M5["<b>Module 5: Building the Flowboard CRUD API</b><br/>• Clean project folder structure<br/>• Implementing Create, Read, Update, Delete<br/>• Error handling & 404 fallbacks"]
 ```
 
 ---
 
-## Module 3: Layered 3-Tier Architecture
+## Module 1: What is a Backend Server? & Intro to Node.js
 
-### 1. Why Layering Matters (Separation of Concerns)
+### 1. Frontend vs. Backend (The Restaurant Mental Model)
 
-Tightly coupling HTTP parsing with database queries creates unmaintainable, untestable code. We enforce a strict **3-Tier Layered Architecture**:
+> [!NOTE]
+> **The Mental Model:**
+> - **The Frontend (Browser / Client):** The dining area of a restaurant. It has comfortable tables, menus, nice lighting, and friendly waiters. Its job is to look great and collect orders from customers.
+> - **The Backend (Server & Database):** The kitchen and the locked storage pantry. It receives orders, validates recipes, securely cooks the food, stores customer accounts, and ensures nobody walks into the kitchen without permission.
 
 ```mermaid
-graph TD
-    Client["Client (Browser / Postman)"] <-->|"HTTP JSON"| Controller["<b>1. Controller Layer</b><br/>• Extracts req.params & req.body<br/>• Coordinates HTTP status codes (200, 201, 404)<br/>• Knows EVERYTHING about HTTP, ZERO about DB"]
-    Controller <-->|"Data DTOs"| Service["<b>2. Service Layer</b><br/>• Pure Business Logic & Domain Rules<br/>• Authorization checks & workflows<br/>• Knows ZERO about HTTP (no req/res)"]
-    Service <-->|"Domain Entities"| Repository["<b>3. Model / Repository Layer</b><br/>• Direct Data Persistence (In-memory array today, PostgreSQL in Week 16)<br/>• CRUD Operations"]
+graph LR
+    subgraph Client ["Client (Browser)"]
+        UI["React Frontend<br/>(Lagos Spots / Flowboard UI)"]
+    end
+
+    subgraph Server ["Backend (Node.js & Express)"]
+        API["Express Server<br/>Listening on Port 5000"]
+    end
+
+    subgraph Database ["Database"]
+        DB["PostgreSQL / Disk Storage"]
+    end
+
+    UI -->|"HTTP Request: GET /api/boards"| API
+    API -->|"Query Data"| DB
+    DB -->|"Raw Records"| API
+    API -->|"HTTP JSON: [{ id: 1, title: 'Sprint 1' }]"| UI
 ```
 
 ---
 
-### 2. Complete Flowboard Domain Implementation
+### 2. What is Node.js?
 
-```
-src/
-├── types/
-│   └── board.types.ts       # TypeScript Domain Interfaces & DTOs
-├── models/
-│   └── board.model.ts       # Data storage layer
-├── services/
-│   └── board.service.ts     # Business logic & validation
-├── controllers/
-│   └── board.controller.ts  # HTTP Request/Response coordination
-├── routes/
-│   └── board.routes.ts      # URL path mapping
-└── index.ts                 # Express app initialization & server entry
+Normally, JavaScript can only run inside a web browser (Chrome, Firefox).
+
+**Node.js** is a program that allows you to run JavaScript directly on your computer's operating system! With Node.js, your JavaScript code can:
+- Listen for network requests on a specific **Port** (like `5000` or `3000`).
+- Read and write files directly on your hard drive.
+- Connect securely to cloud databases.
+
+Verify that Node is installed on your computer:
+```bash
+node -v
+# Output should be v18.x.x, v20.x.x, or newer LTS
 ```
 
-#### 1. Domain Types (`src/types/board.types.ts`):
+---
+
+### 3. Your First 10-Line Express Server
+
+Let's build a working server from scratch:
+
+```bash
+# 1. Create project folder
+mkdir flowboard-api && cd flowboard-api
+
+# 2. Initialize npm package.json
+npm init -y
+
+# 3. Install Express & developer tools
+npm install express cors dotenv
+npm install -D tsx typescript @types/node @types/express @types/cors
+```
+
+Create a file named `src/index.ts`:
+
 ```ts
-export interface Board {
+// src/index.ts
+import express, { Request, Response } from "express";
+
+const app = express();
+const PORT = 5000;
+
+// A simple GET route:
+app.get("/", (req: Request, res: Response) => {
+  res.send("🚀 Flowboard API is online and listening!");
+});
+
+// A route that returns JSON data:
+app.get("/api/health", (req: Request, res: Response) => {
+  res.json({ status: "healthy", timestamp: new Date() });
+});
+
+// Start listening for incoming connections:
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+```
+
+Add a dev script to `package.json`:
+```json
+"scripts": {
+  "dev": "tsx watch src/index.ts"
+}
+```
+
+Run `npm run dev`, open `http://localhost:5000/api/health` in your browser, and you will see your live JSON response!
+
+---
+
+## Module 2: Testing APIs with Thunder Client or Postman
+
+When building websites, browsers can easily test `GET` requests (just by typing a URL). But how do you test submitting a form with `POST`, updating data with `PATCH`, or deleting a board with `DELETE` before your frontend is built?
+
+> [!TIP]
+> Install the free **Thunder Client** extension directly inside VS Code (or download **Postman**).
+> Thunder Client allows you to construct any HTTP request, type a JSON body, set headers, and inspect the status code and response instantly!
+
+```mermaid
+flowchart LR
+    DEV["Developer in Thunder Client"] -->|"POST /api/boards<br/>Body: { title: 'Q4 Goals' }"| SERVER["Express Server"]
+    SERVER -->|"201 Created<br/>{ id: '1', title: 'Q4 Goals' }"| DEV
+```
+
+### Essential HTTP Status Codes to Know:
+- **`200 OK`:** Successful read or update.
+- **`201 Created`:** New item successfully created via `POST`.
+- **`400 Bad Request`:** Client sent invalid or missing data.
+- **`404 Not Found`:** The requested ID or URL does not exist.
+- **`500 Internal Server Error`:** The server crashed (check your backend terminal console!).
+
+---
+
+## Module 3: REST API Architecture
+
+**REST (Representational State Transfer)** is the industry-standard way to design web APIs.
+
+### The Core REST Rules:
+1. **URIs represent NOUNS (resources), never verbs:**
+   - 🟢 Good: `GET /api/boards` (Get all boards)
+   - 🔴 Bad: `/api/getBoards` or `/api/createNewBoard`
+2. **HTTP Verbs describe the ACTION:**
+
+| HTTP Verb | Purpose in Flowboard | Example Route | Expected Status |
+| :--- | :--- | :--- | :--- |
+| **`GET`** | Read / Fetch all items | `/api/boards` | `200 OK` |
+| **`GET`** | Read a single item by ID | `/api/boards/:id` | `200 OK` or `404` |
+| **`POST`** | Create a new item | `/api/boards` | `201 Created` |
+| **`PATCH`** | Update specific fields on an item | `/api/boards/:id` | `200 OK` |
+| **`DELETE`** | Remove an item | `/api/boards/:id` | `200 OK` / `204` |
+
+---
+
+## Module 4: Express Middleware (The Assembly Line)
+
+> [!NOTE]
+> **The Mental Model:** Imagine an airport security checkpoint.
+> Before you get on the plane (your route handler), you pass through checkpoints:
+> 1. Checkpoint 1 checks your passport (Logging / Auth).
+> 2. Checkpoint 2 scans your bags and translates contents (`express.json()`).
+> 3. Each checkpoint does its job and says **`next()`** to send you to the next station.
+
+```mermaid
+flowchart TD
+    REQ["Incoming Request"] --> MW1["Logger Middleware<br/>console.log(req.method, req.url)"]
+    MW1 -->|"next()"| MW2["express.json()<br/>Parses incoming body stream into req.body"]
+    MW2 -->|"next()"| MW3["cors()<br/>Allows frontend requests from localhost:5173"]
+    MW3 -->|"next()"| HANDLER["Route Handler<br/>app.post('/api/boards')"]
+    HANDLER --> RES["res.status(201).json(newBoard)"]
+```
+
+### The Most Common Beginner Express Bug:
+If you send a JSON body from Thunder Client, but inside Express `req.body` is `undefined`, you forgot to enable the JSON body parser!
+
+**Always add this near the top of your server:**
+```ts
+app.use(express.json()); // Parses incoming JSON in request bodies!
+```
+
+---
+
+## Module 5: Building the Flowboard CRUD API
+
+Let's build a complete, working in-memory CRUD API for **Flowboard Boards**:
+
+```ts
+// src/index.ts
+import express, { Request, Response } from "express";
+import cors from "cors";
+
+const app = express();
+const PORT = 5000;
+
+// Enable essential middlewares:
+app.use(cors());
+app.use(express.json());
+
+// In-Memory Data Store (We replace this with PostgreSQL in Week 16):
+interface Board {
   id: string;
   title: string;
   description: string;
   createdAt: Date;
-  updatedAt: Date;
 }
 
-export interface CreateBoardDTO {
-  title: string;
-  description?: string;
-}
-
-export interface UpdateBoardDTO {
-  title?: string;
-  description?: string;
-}
-```
-
-#### 2. Model Layer (`src/models/board.model.ts`):
-```ts
-import { Board } from '../types/board.types';
-
-// In-memory data store (swapped with PostgreSQL & Drizzle in Week 16)
-let boardsTable: Board[] = [
-  {
-    id: 'b-1',
-    title: 'Product Roadmap Q3',
-    description: 'Core product features and milestone deliverables',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
+let boards: Board[] = [
+  { id: "1", title: "Project Launch", description: "Tasks for Q4 MVP launch", createdAt: new Date() },
+  { id: "2", title: "Marketing Campaign", description: "Lagos billboard & social outreach", createdAt: new Date() },
 ];
 
-export const BoardModel = {
-  findAll: async (): Promise<Board[]> => {
-    return [...boardsTable];
-  },
-
-  findById: async (id: string): Promise<Board | null> => {
-    const found = boardsTable.find((b) => b.id === id);
-    return found ? { ...found } : null;
-  },
-
-  create: async (data: Omit<Board, 'id' | 'createdAt' | 'updatedAt'>): Promise<Board> => {
-    const newBoard: Board = {
-      id: `b-${crypto.randomUUID()}`,
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    boardsTable.push(newBoard);
-    return { ...newBoard };
-  },
-
-  update: async (id: string, data: Partial<Omit<Board, 'id' | 'createdAt'>>): Promise<Board | null> => {
-    const index = boardsTable.findIndex((b) => b.id === id);
-    if (index === -1) return null;
-
-    boardsTable[index] = {
-      ...boardsTable[index],
-      ...data,
-      updatedAt: new Date(),
-    };
-    return { ...boardsTable[index] };
-  },
-
-  delete: async (id: string): Promise<boolean> => {
-    const initialLength = boardsTable.length;
-    boardsTable = boardsTable.filter((b) => b.id !== id);
-    return boardsTable.length < initialLength;
-  },
-};
-```
-
-#### 3. Service Layer (`src/services/board.service.ts`):
-```ts
-import { BoardModel } from '../models/board.model';
-import { Board, CreateBoardDTO, UpdateBoardDTO } from '../types/board.types';
-
-export const BoardService = {
-  getAllBoards: async (): Promise<Board[]> => {
-    return BoardModel.findAll();
-  },
-
-  getBoardById: async (id: string): Promise<Board> => {
-    const board = await BoardModel.findById(id);
-    if (!board) {
-      const error: any = new Error(`Board with ID "${id}" was not found.`);
-      error.statusCode = 404;
-      throw error;
-    }
-    return board;
-  },
-
-  createBoard: async (dto: CreateBoardDTO): Promise<Board> => {
-    if (!dto.title || dto.title.trim().length < 3) {
-      const error: any = new Error('Board title must be at least 3 characters long.');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    return BoardModel.create({
-      title: dto.title.trim(),
-      description: dto.description?.trim() ?? '',
-    });
-  },
-
-  updateBoard: async (id: string, dto: UpdateBoardDTO): Promise<Board> => {
-    // Verify board exists first
-    await BoardService.getBoardById(id);
-
-    const updated = await BoardModel.update(id, dto);
-    if (!updated) {
-      const error: any = new Error(`Failed to update board "${id}".`);
-      error.statusCode = 500;
-      throw error;
-    }
-    return updated;
-  },
-
-  deleteBoard: async (id: string): Promise<void> => {
-    await BoardService.getBoardById(id);
-    await BoardModel.delete(id);
-  },
-};
-```
-
-#### 4. Controller Layer (`src/controllers/board.controller.ts`):
-```ts
-import { Request, Response, NextFunction } from 'express';
-import { BoardService } from '../services/board.service';
-
-export const BoardController = {
-  getBoards: async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const boards = await BoardService.getAllBoards();
-      res.status(200).json({
-        status: 'success',
-        results: boards.length,
-        data: { boards },
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  getBoard: async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const board = await BoardService.getBoardById(id);
-      res.status(200).json({
-        status: 'success',
-        data: { board },
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  createBoard: async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const newBoard = await BoardService.createBoard(req.body);
-      res.status(201).json({
-        status: 'success',
-        data: { board: newBoard },
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  updateBoard: async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const updatedBoard = await BoardService.updateBoard(id, req.body);
-      res.status(200).json({
-        status: 'success',
-        data: { board: updatedBoard },
-      });
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  deleteBoard: async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      await BoardService.deleteBoard(id);
-      res.status(204).send(); // 204 No Content
-    } catch (err) {
-      next(err);
-    }
-  },
-};
-```
-
-#### 5. Route Router (`src/routes/board.routes.ts`):
-```ts
-import { Router } from 'express';
-import { BoardController } from '../controllers/board.controller';
-
-const router = Router();
-
-router.route('/')
-  .get(BoardController.getBoards)
-  .post(BoardController.createBoard);
-
-router.route('/:id')
-  .get(BoardController.getBoard)
-  .patch(BoardController.updateBoard)
-  .delete(BoardController.deleteBoard);
-
-export default router;
-```
-
-#### 6. Express Server Entry (`src/index.ts`):
-```ts
-import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
-import boardRoutes from './routes/board.routes';
-
-const app = express();
-const PORT = process.env.PORT || 4000;
-
-// Global Middleware
-app.use(cors());
-app.use(express.json()); // Parses application/json body
-
-// Health Check Endpoint
-app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+// 1. GET /api/boards - List all boards
+app.get("/api/boards", (req: Request, res: Response) => {
+  res.json(boards);
 });
 
-// Mount Versioned API Routers
-app.use('/api/v1/boards', boardRoutes);
+// 2. GET /api/boards/:id - Get a single board by ID
+app.get("/api/boards/:id", (req: Request, res: Response) => {
+  const boardId = req.params.id;
+  const board = boards.find((b) => b.id === boardId);
 
-// 404 Catch-All Handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    status: 'fail',
-    message: `Endpoint ${req.method} ${req.originalUrl} does not exist on this server.`,
-  });
+  if (!board) {
+    return res.status(404).json({ error: `Board with ID ${boardId} not found.` });
+  }
+
+  res.json(board);
 });
 
-// Global Error-Handling Middleware (Must have 4 arguments!)
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
+// 3. POST /api/boards - Create a new board
+app.post("/api/boards", (req: Request, res: Response) => {
+  const { title, description } = req.body;
 
-  console.error(`[Error ${statusCode}]:`, err);
+  // Input Validation:
+  if (!title || title.trim().length < 3) {
+    return res.status(400).json({ error: "Title is required and must be at least 3 characters." });
+  }
 
-  res.status(statusCode).json({
-    status: statusCode >= 500 ? 'error' : 'fail',
-    message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
+  const newBoard: Board = {
+    id: Date.now().toString(),
+    title: title.trim(),
+    description: description ? description.trim() : "",
+    createdAt: new Date(),
+  };
+
+  boards.push(newBoard);
+  res.status(201).json(newBoard);
 });
 
+// 4. PATCH /api/boards/:id - Update an existing board
+app.patch("/api/boards/:id", (req: Request, res: Response) => {
+  const boardId = req.params.id;
+  const board = boards.find((b) => b.id === boardId);
+
+  if (!board) {
+    return res.status(404).json({ error: `Board with ID ${boardId} not found.` });
+  }
+
+  const { title, description } = req.body;
+  if (title) board.title = title.trim();
+  if (description !== undefined) board.description = description.trim();
+
+  res.json(board);
+});
+
+// 5. DELETE /api/boards/:id - Delete a board
+app.delete("/api/boards/:id", (req: Request, res: Response) => {
+  const boardId = req.params.id;
+  const initialLength = boards.length;
+  boards = boards.filter((b) => b.id !== boardId);
+
+  if (boards.length === initialLength) {
+    return res.status(404).json({ error: `Board with ID ${boardId} not found.` });
+  }
+
+  res.json({ message: "Board deleted successfully." });
+});
+
+// Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 Flowboard API server listening on http://localhost:${PORT}`);
+  console.log(`Flowboard API running on http://localhost:${PORT}`);
 });
 ```
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 6: Rookie Traps & Debugging Guide
 
-| Pitfall | Root Cause | Fix |
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| `req.body` is `undefined` | Sending JSON payloads without registering the JSON body parser. | Add `app.use(express.json());` before mounting routers. |
-| `Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client` | Attempting to send a second response (e.g. forgot `return res.json()`). | Always `return` when sending early error responses inside conditional branches. |
-| Server hangs indefinitely | Forgetting to call `next()` or send a response in a middleware function. | Ensure every middleware branch either sends a response or calls `next()`. |
+| `Error: listen EADDRINUSE: address already in use :::5000` | Another instance of your server is already running on port 5000. | Kill the previous terminal process (`Ctrl + C`) or change the port to 5001. |
+| `req.body is undefined` | Missing `express.json()` middleware. | Add `app.use(express.json())` before defining routes. |
+| Request hangs forever in Thunder Client / Postman | You forgot to send a response: no `res.json()` or `res.send()`. | Ensure every route sends a response or calls `next()`. |
+| `Cannot GET /api/board` (Notice missing 's') | Misspelled route URL. | Check spelling in both Thunder Client and your Express route definition. |
 
 ---
 
-### Week 15: Comprehensive Assignment
+## 🎯 Week 15 Hands-on Classroom Exercises
 
-**Objective:** Scaffold the Flowboard REST API with Node.js, Express, and TypeScript, implementing the 3-Tier Layered Architecture (Controller $\leftrightarrow$ Service $\leftrightarrow$ Model) and complete CRUD operations.
+### Level 1: Initializing Your Server
+1. Create a `flowboard-api` folder and initialize with `npm init -y`.
+2. Install Express, CORS, and TypeScript tooling.
+3. Write a health check route `GET /api/health` and verify it in your browser.
 
-**Requirements:**
-1. **Tooling & Setup:**
-   - Initialized with `npm`, TypeScript strict mode, and `tsx watch` for auto-restarts.
-   - Global middleware: `cors()`, `express.json()`.
-2. **Layered Architecture:**
-   - Code strictly partitioned into `routes/`, `controllers/`, `services/`, `models/`, and `types/`.
-   - Controllers handle HTTP req/res; Services handle business rules; Models handle storage.
-3. **RESTful Endpoints:**
-   - `GET /api/v1/boards` $\to$ Returns array of boards (`200 OK`).
-   - `GET /api/v1/boards/:id` $\to$ Returns single board or `404 Not Found`.
-   - `POST /api/v1/boards` $\to$ Validates title ($\ge 3$ chars) and creates board (`201 Created`).
-   - `PATCH /api/v1/boards/:id` $\to$ Partial update (`200 OK`).
-   - `DELETE /api/v1/boards/:id` $\to$ Deletes board (`204 No Content`).
-4. **Global Error Handling:**
-   - 404 handler for unrecognized routes.
-   - 4-argument global error middleware returning formatted JSON errors.
-5. **Git Workflow:**
-   - Repository `flowboard-api` initialized, committed with conventional commit messages, and pushed to GitHub.
+### Level 2: Testing CRUD with Thunder Client
+1. Implement the `GET /api/boards` and `POST /api/boards` routes.
+2. In Thunder Client or Postman, send a `POST` request with a JSON body:
+   `{ "title": "Classroom Sprint", "description": "Learning Express today" }`.
+3. Verify that you get back a `201 Created` status with the newly created board!
+
+### Level 3: Adding Lists to Flowboard
+1. Inside Flowboard, boards contain **Lists** (e.g., "To Do", "In Progress", "Done").
+2. Create an in-memory `lists` array: `{ id, boardId, title }`.
+3. Implement `GET /api/boards/:boardId/lists` to return all lists belonging to a specific board.
+4. Implement `POST /api/boards/:boardId/lists` to create a new list for that board!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [Node.js Official Documentation](https://nodejs.org/docs/latest/api/) — Complete API reference for the Node.js runtime, event loop, and core modules.
-- [Express.js Official Guide](https://expressjs.com/en/guide/routing.html) — Routing, middleware pipeline execution, and error handling architecture.
-- [RESTful API Design Standards (restfulapi.net)](https://restfulapi.net/) — Resource-oriented URI design, HTTP verb semantics, and status code specifications.
-
-### Recommended Textbooks & Canonical Books
-- **Node.js Design Patterns (3rd Edition)** by Mario Casciaro and Luciano Mammino (Packt) — *Chapters 1–4: The Node.js Platform, Module System, and Asynchronous Control Flow Patterns.*
-- **Build APIs You Won't Hate** by Phil Sturgeon — *Practical architectural guide for designing RESTful APIs, versioning, serialization, and status code best practices.*
-- **REST in Practice: Hypermedia and Systems Architecture** by Jim Webber, Savas Parastatidis, and Ian Robinson (O'Reilly) — *Deconstructing distributed system design using HTTP.*
-
-### Deep Dives & Architectural Guides
-- [Martin Fowler: Richardson Maturity Model](https://martinfowler.com/articles/richardsonMaturityModel.html) — The 4-level model evaluating RESTful API compliance.
-- [Node.js Event Loop, Timers, and process.nextTick()](https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick) — Official guide explaining libuv event loop phases.
+* [The Valley of Code: Node.js Tutorial](https://thevalleyofcode.com/nodejs/) — Flavio Copes' gentle introduction to server-side JavaScript.
+* [The Valley of Code: Express Handbook](https://thevalleyofcode.com/express/) — Step-by-step guide to Express routing and middlewares.
+* [Express.js Official Documentation](https://expressjs.com/en/starter/installing.html) — Official documentation and routing guides.
+* [MDN Web Docs: Express Web Development](https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs) — Comprehensive tutorial on backend architecture.

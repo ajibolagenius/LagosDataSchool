@@ -1,172 +1,173 @@
 # Week 14: Advanced React, Testing & Ship
 
-This week marks the culmination of the React Frontend curriculum. You will transition Lagos Spots from a working prototype into a production-grade web application: eliminating unnecessary render cycles via **Memoization (`React.memo`, `useMemo`, `useCallback`)**, code-splitting routes with **`React.lazy` & `<Suspense>`**, writing automated component tests with **Vitest & React Testing Library (RTL)**, and deploying the optimized build to **Vercel / Netlify**.
+Welcome to Week 14! You have reached the grand finale of **Part III: React Mastery**. Over the past three weeks, you designed components, managed reactive state, and built a multi-route architecture with React Router and Context.
+
+Now comes the difference between an amateur hobby project and a **professional, production-ready product**:
+1. **Performance:** Does your app lag when searching through hundreds of places, or does it stay at 60 FPS?
+2. **Bundle Size:** Does a user on a mobile 3G network in Lagos have to download your entire app upfront, or do pages load on-demand?
+3. **Automated Testing:** When you change a piece of code at 2:00 AM, are you confident nothing else broke?
+4. **Deployment:** How do you actually put your project live on the internet with a custom link to show employers and friends?
+
+This week, you master **Performance Optimization (`useMemo`, `useCallback`)**, **Code-Splitting (`React.lazy` & `<Suspense>`)**, **Testing with Vitest & React Testing Library**, and **Deploying to Vercel**.
 
 ---
 
-## Module 1: React Performance Optimization & Code-Splitting
-
-### 1. The Core Terminology of React Performance
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Referential Equality** | In JavaScript, objects, arrays, and functions are compared by their **memory address reference**, not their contents (`{} !== {}`, `(() => {}) !== (() => {})`). | Passing a fresh inline arrow function or object prop causes child components to re-render even if data is identical. |
-| **`React.memo`** | A Higher-Order Component that memoizes the rendered output of a component, skipping re-renders if its props have shallow referential equality. | Prevents child component re-renders when parent state updates. |
-| **`useMemo`** | A React hook that caches the result of an expensive calculation between renders, recalculating only when dependencies change. | Used for computationally expensive operations (filtering, sorting large datasets). |
-| **`useCallback`** | A React hook that returns a **memoized callback function reference** across renders. | Essential when passing callback handlers to `React.memo`-wrapped child components. |
-| **Code-Splitting** | Splitting the single monolithic JavaScript application bundle into smaller chunks that load on-demand when specific routes are visited. | Dramatically reduces initial page load times and improves **Largest Contentful Paint (LCP)**. |
-| **`Suspense`** | A React boundary component that renders a fallback UI (like a loading spinner or skeleton) while its lazy-loaded child component is being downloaded over the network. | Manages async asset loading states declaratively. |
-
----
-
-### 2. Under the Hood: Why `useCallback` is Required with `React.memo`
+## Pedagogical Roadmap
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Parent as <HomePage />
-    participant Child as <SpotCard /> (Wrapped in React.memo)
-
-    Note over Parent: User types in Search Input -> triggers setSearchQuery()
-    Parent->>Parent: Re-renders HomePage
-    Note over Parent: Creates NEW function reference in memory:<br/>handleToggleFavorite = 0x00B2
-    Parent->>Child: Passes prop: onToggleFavorite (Address: 0x00B2)
-    Note over Child: React.memo compares old prop (0x00A1) !== new prop (0x00B2)
-    Child->>Child: FAILED MEMOIZATION! Child re-renders unnecessarily!
+flowchart TD
+    M1["<b>Module 1: Performance & Memoization</b><br/>• Why components re-render<br/>• useMemo (The Smart Calculator)<br/>• useCallback (Stable function memories)<br/>• React.memo for pure components"]
+    --> M2["<b>Module 2: Code-Splitting with Lazy & Suspense</b><br/>• The Buffet vs À La Carte mental model<br/>• React.lazy for route-based chunking<br/>• Suspense & beautiful loading skeletons"]
+    --> M3["<b>Module 3: Testing with Vitest & RTL</b><br/>• Why automated testing saves your career<br/>• Testing what the user actually sees<br/>• Writing tests for buttons, forms & spot cards"]
+    --> M4["<b>Module 4: Shipping to Production (Vercel)</b><br/>• npm run build & inspecting dist/<br/>• Environment variables in production<br/>• One-click deployment & sharing your live link!"]
 ```
 
-#### The Fix: Stabilizing Function References with `useCallback`
+---
+
+## Module 1: Performance & Memoization
+
+### 1. Why Do React Components Re-Render?
+
+Whenever state changes in a parent component, React re-runs that component function from top to bottom. By default, **every child component inside it also re-renders**.
+
+For 95% of small apps, this is completely fine. But when filtering a massive directory of places or rendering hundreds of cards, running heavy calculations on every single keystroke causes visible typing lag.
+
+---
+
+### 2. `useMemo`: The Smart Calculator
+
+> [!NOTE]
+> **The Mental Model:** Imagine your friend asks: *"What is 2,438 × 1,942?"* You do the heavy math on paper and say: *"4,734,596."*
+> Five seconds later, your friend asks the exact same question again. You don't recalculate from scratch on paper — you remember the answer you already calculated!
+> **`useMemo` caches the result of an expensive calculation** and only recalculates if its dependencies change.
+
 ```tsx
-// src/pages/HomePage.tsx
-import React, { useState, useMemo, useCallback } from 'react';
-import { SpotCard } from '../components/SpotCard';
-import { useFavorites } from '../context/FavoritesContext';
-import { Spot, Category } from '../types';
+import { useState, useMemo } from "react";
+import { Spot } from "../types";
 
-export const HomePage: React.FC<{ allSpots: Spot[] }> = ({ allSpots }) => {
-  const [selectedCategory, setSelectedCategory] = useState<Category | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const { isFavorite, toggleFavorite } = useFavorites();
+export function SpotSearch({ allSpots }: { allSpots: Spot[] }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [darkTheme, setDarkTheme] = useState(false);
 
-  // 1. Memoize expensive array filtering and sorting
-  const visibleSpots = useMemo(() => {
-    return allSpots.filter((spot) => {
-      const matchesCategory = selectedCategory === 'all' || spot.category === selectedCategory;
-      const matchesQuery =
-        searchQuery.trim() === '' ||
-        spot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        spot.area.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesQuery;
-    });
-  }, [allSpots, selectedCategory, searchQuery]);
-
-  // 2. Memoize the callback handler so its memory reference stays stable
-  const handleToggle = useCallback(
-    (spotId: string) => {
-      toggleFavorite(spotId);
-    },
-    [toggleFavorite]
-  );
+  // 🟢 useMemo caches the filtered array.
+  // It ONLY recalculates when 'allSpots' or 'searchTerm' changes!
+  // If 'darkTheme' toggles, this heavy filter is SKIPPED!
+  const filteredSpots = useMemo(() => {
+    console.log("Filtering spots...");
+    return allSpots.filter((spot) =>
+      spot.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      spot.area.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [allSpots, searchTerm]);
 
   return (
     <div>
       <input
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Filter visible spots..."
-        className="mb-6 px-4 py-2 border rounded-lg"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search Lagos spots..."
       />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {visibleSpots.map((spot) => (
-          <SpotCard
-            key={spot.id}
-            spot={spot}
-            isFavorite={isFavorite(spot.id)}
-            onToggleFavorite={handleToggle}
-          />
-        ))}
-      </div>
+      <button onClick={() => setDarkTheme(!darkTheme)}>Toggle Theme</button>
+      {/* Render filteredSpots ... */}
     </div>
   );
-};
+}
 ```
 
 ---
 
-### 3. Under the Hood: Route-Level Code-Splitting with `React.lazy`
+### 3. `useCallback`: Remembering Function References
 
-By default, Vite packages all pages into a single bundle (`index.js`). A visitor opening the homepage downloads code for the Admin panel, Detail views, and Submit forms upfront.
+In JavaScript, functions are objects. Every time a component re-renders, **any function defined inside it is created as a completely new function in memory**:
 
-**`React.lazy`** transforms dynamic imports (`import('./pages/SpotDetailPage')`) into asynchronous chunks loaded only on-demand:
+```js
+// In JavaScript:
+const fn1 = () => "hello";
+const fn2 = () => "hello";
+console.log(fn1 === fn2); // FALSE! Different memory addresses!
+```
+
+If you pass an arrow function prop down to a child component, the child thinks the prop changed on every single render.
+
+**`useCallback`** returns the **exact same function reference** between renders:
+
+```tsx
+import { useCallback } from "react";
+
+// The function is only recreated if 'toggleFavorite' changes:
+const handleToggle = useCallback((spotId: number) => {
+  toggleFavorite(spotId);
+}, [toggleFavorite]);
+```
+
+---
+
+## Module 2: Code-Splitting with `React.lazy` & `<Suspense>`
+
+### 1. The Monolith Problem (The Buffet vs À La Carte Analogy)
+
+> [!NOTE]
+> **The Mental Model:**
+> - Without code-splitting, your website is like an **all-you-can-eat buffet where you must eat all 50 dishes before walking through the door**. Even if a visitor only wanted to see the home page, their phone downloads the code for the Admin dashboard, Submit form, and Detail views upfront!
+> - With **Code-Splitting**, you order **à la carte**. When a user visits the homepage, they only download the homepage (fast!). When they click `/submit`, the browser fetches that page's chunk in the background.
 
 ```mermaid
 flowchart TD
-    App["Main App Bundle (index.js - 45 KB)<br/>• HomePage<br/>• RootLayout<br/>• React Runtime"]
+    APP["<b>Main App Bundle (index.js - 35 KB)</b><br/>• HomePage<br/>• Navbar & Footer"]
     
-    subgraph OnDemand["On-Demand Lazy Chunks (Downloaded Only When Visited)"]
-        C1["SpotDetailPage.chunk.js (12 KB)"]
-        C2["SubmitPage.chunk.js (18 KB)"]
-        C3["FavoritesPage.chunk.js (8 KB)"]
+    subgraph LazyRoutes ["Lazy Chunks (Downloaded Only On Demand)"]
+        C1["SpotDetailPage.js (8 KB)"]
+        C2["SubmitPage.js (12 KB)"]
+        C3["FavoritesPage.js (6 KB)"]
     end
 
-    App -.->|"User navigates to /spots/:id"| C1
-    App -.->|"User navigates to /submit"| C2
-    App -.->|"User navigates to /favorites"| C3
+    APP -.->|"User clicks /spots/1"| C1
+    APP -.->|"User clicks /submit"| C2
+    APP -.->|"User clicks /favorites"| C3
 ```
+
+---
+
+### 2. Implementing `React.lazy` in Your Router
 
 ```tsx
 // src/router.tsx
-import React, { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
-import { RootLayout } from './layouts/RootLayout';
-import { HomePage } from './pages/HomePage';
+import { lazy, Suspense } from "react";
+import { createBrowserRouter } from "react-router-dom";
+import { RootLayout } from "./layouts/RootLayout";
+import { HomePage } from "./pages/HomePage";
 
-// Lazy-load secondary routes
-const SpotDetailPage = lazy(() =>
-  import('./pages/SpotDetailPage').then((m) => ({ default: m.SpotDetailPage }))
-);
-const SubmitSpotPage = lazy(() =>
-  import('./pages/SubmitSpotPage').then((m) => ({ default: m.SubmitSpotPage }))
-);
-const FavoritesPage = lazy(() =>
-  import('./pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage }))
-);
+// 1. Lazy load secondary pages:
+const SpotDetailPage = lazy(() => import("./pages/SpotDetailPage"));
+const SubmitSpotPage = lazy(() => import("./pages/SubmitSpotPage"));
+const FavoritesPage = lazy(() => import("./pages/FavoritesPage"));
 
-const PageLoader = () => (
-  <div className="flex justify-center items-center py-20">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+// 2. Simple Loading Spinner Fallback:
+const LoadingSpinner = () => (
+  <div className="py-20 text-center text-slate-500 font-semibold animate-pulse">
+    ⏳ Loading page...
   </div>
 );
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <RootLayout />,
     children: [
       { index: true, element: <HomePage /> },
       {
-        path: 'spots/:id',
+        path: "spots/:id",
         element: (
-          <Suspense fallback={<PageLoader />}>
+          <Suspense fallback={<LoadingSpinner />}>
             <SpotDetailPage />
           </Suspense>
         ),
       },
       {
-        path: 'submit',
+        path: "submit",
         element: (
-          <Suspense fallback={<PageLoader />}>
+          <Suspense fallback={<LoadingSpinner />}>
             <SubmitSpotPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: 'favorites',
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <FavoritesPage />
           </Suspense>
         ),
       },
@@ -177,189 +178,148 @@ export const router = createBrowserRouter([
 
 ---
 
-## Module 2: Automated Testing with Vitest & React Testing Library
+## Module 3: Automated Testing with Vitest & RTL
 
-### 1. The React Testing Philosophy: Testing User Behavior
+### 1. Why Do Developers Write Automated Tests?
 
-**React Testing Library (RTL)** follows a core tenet:
-> *"The more your tests resemble the way your software is used, the more confidence they can give you."*
+Imagine you just fixed a typo in the `<AddSpotForm />`. How do you know:
+- Did you accidentally break the favorite button on the home page?
+- Does submitting an empty form still show an error message?
+- Does typing into the search bar still filter places?
 
-RTL avoids testing internal component state (`wrapper.state()`) or private methods. Instead, tests query the rendered DOM using accessibility landmarks that real users and screen readers rely on (`getByRole`, `getByLabelText`, `getByText`).
+Manual testing (clicking around the website for 15 minutes every time you make a change) is slow and error-prone. **Automated tests run in 2 seconds and verify that every feature works flawlessly.**
 
 ---
 
-### 2. Setting Up Vitest & jsdom
+### 2. Setting Up Vitest & React Testing Library
 
 ```bash
-npm install -D vitest @testing-library/react @testing-library/user-event @testing-library/jest-dom jsdom
+npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
 ```
 
-```ts
-// vite.config.ts
-/// <reference types="vitest" />
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
-import tailwindcss from '@tailwindcss/vite';
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-  },
-});
-```
-
-```ts
-// src/test/setup.ts
-import '@testing-library/jest-dom';
+Add test command to `package.json`:
+```json
+"scripts": {
+  "test": "vitest"
+}
 ```
 
 ---
 
-### 3. Writing Robust Component Tests
+### 3. Writing Your First Component Test
+
+The philosophy of **React Testing Library** is simple: **Test your components the same way a real human user interacts with them.** (Don't test internal state variables; test what appears on the screen!).
 
 ```tsx
-// src/components/__tests__/SpotCard.test.tsx
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { SpotCard } from '../SpotCard';
-import { Spot } from '../../types';
+// src/components/SpotCard.test.tsx
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi } from "vitest";
+import { SpotCard } from "./SpotCard";
 
-const mockSpot: Spot = {
-  id: 'bogobiri',
-  name: 'Bogobiri House',
-  category: 'events',
-  area: 'Ikoyi',
-  description: 'African art gallery and live Afrobeat music hub.',
-  imageUrl: '/assets/bogobiri.jpg',
-};
+describe("SpotCard Component", () => {
+  const mockSpot = {
+    id: 1,
+    name: "Terra Kulture",
+    area: "Victoria Island",
+    category: "Food",
+    fee: 0,
+  };
 
-describe('<SpotCard />', () => {
-  it('renders spot title, area, and category badge accurately', () => {
-    render(<SpotCard spot={mockSpot} isFavorite={false} />);
+  it("renders the spot name and location correctly", () => {
+    render(<SpotCard spot={mockSpot} isFavorite={false} onToggleFavorite={() => {}} />);
 
-    expect(screen.getByRole('heading', { level: 3, name: /bogobiri house/i })).toBeInTheDocument();
-    expect(screen.getByText(/ikoyi/i)).toBeInTheDocument();
-    expect(screen.getByText(/events/i)).toBeInTheDocument();
-    expect(screen.getByText(/african art gallery/i)).toBeInTheDocument();
+    // Check if the title is visible on screen:
+    expect(screen.getByText("Terra Kulture")).toBeDefined();
+    expect(screen.getByText(/Victoria Island/i)).toBeDefined();
+    expect(screen.getByText("Free Entry")).toBeDefined();
   });
 
-  it('triggers onToggleFavorite callback with correct ID when favorite button is clicked', async () => {
-    const user = userEvent.setup();
-    const handleToggle = vi.fn();
+  it("calls onToggleFavorite when favorite button is clicked", async () => {
+    const handleToggle = vi.fn(); // Spy function that tracks if it was called
 
-    render(
-      <SpotCard spot={mockSpot} isFavorite={false} onToggleFavorite={handleToggle} />
-    );
+    render(<SpotCard spot={mockSpot} isFavorite={false} onToggleFavorite={handleToggle} />);
 
-    const favoriteButton = screen.getByRole('button', { name: /add to favorites/i });
-    await user.click(favoriteButton);
+    // User finds the button and clicks it:
+    const button = screen.getByRole("button", { name: /save/i });
+    await userEvent.click(button);
 
-    // Verify callback was invoked with exact parameter
+    // Verify our function was called exactly once with spot id 1:
     expect(handleToggle).toHaveBeenCalledTimes(1);
-    expect(handleToggle).toHaveBeenCalledWith('bogobiri');
-  });
-
-  it('displays active favorited label when isFavorite prop is true', () => {
-    render(<SpotCard spot={mockSpot} isFavorite={true} />);
-    expect(screen.getByRole('button', { name: /remove from favorites/i })).toHaveTextContent(/favorited/i);
   });
 });
 ```
 
----
-
-## Module 3: Production Build & Deployment Pipeline
-
-### 1. Client Environment Variables in Vite
-
-Vite exposes environment variables prefixed with `VITE_` to client-side code via `import.meta.env`:
-
-```env
-# .env
-VITE_APP_TITLE=Lagos Spots
-VITE_NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
-```
-
-> [!CAUTION]
-> **Client Secrets Rule:** Any variable prefixed with `VITE_` is compiled directly into the client-side JavaScript bundle and is publicly readable by anyone inspecting the source in DevTools. **Never put private API keys, database credentials, or secret signing keys in `.env` files within frontend projects!**
+Run `npm test`, and watch Vitest run your tests in milliseconds!
 
 ---
 
-### 2. Building & Deploying to Vercel
+## Module 4: Shipping to Production (Vercel)
+
+### 1. The Production Build: `npm run build`
+
+When you develop locally, Vite serves unbundled TypeScript files. Before deploying, you must create an **optimized production build**:
 
 ```bash
-# 1. Execute type check and production build
 npm run build
-
-# 2. Preview the production build locally
-npm run preview
 ```
 
-#### Production Deployment Steps:
-1. Push `lagos-spots-react` to GitHub:
+This compiles all your code, minifies HTML/CSS/JS, and creates a **`dist/`** folder containing small, blazingly fast assets ready for the cloud.
+
+---
+
+### 2. Deploying to Vercel in 3 Minutes
+
+**Vercel** is the gold standard for deploying modern frontend web applications:
+
+1. Push your latest code to GitHub:
    ```bash
+   git add .
+   git commit -m "feat: complete Lagos Spots React SPA with routing and tests"
    git push origin main
    ```
-2. Log into [Vercel](https://vercel.com) and click **"Add New Project"**.
-3. Import your GitHub repository `lagos-spots-react`.
-4. Vercel automatically detects the Vite build command (`npm run build`) and output directory (`dist`). Click **Deploy**.
-5. Configure client-side SPA routing rewrites by adding a `vercel.json` file to the root:
-   ```json
-   {
-     "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-   }
-   ```
+2. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
+3. Click **"Add New Project"** $\to$ Select your `lagos-spots` repository.
+4. Click **Deploy**!
+5. In under 45 seconds, Vercel gives you a live, public, SSL-secured URL (e.g., `https://lagos-spots.vercel.app`) to share with the world!
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 5: Rookie Traps & Debugging Guide
 
-| Pitfall | Root Cause | Fix |
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Over-memoization overhead** | Wrapping trivial components and basic calculations with `useMemo`/`useCallback`. | Only apply memoization to computationally heavy operations or components with expensive child subtrees. |
-| **Testing implementation details** | Inspecting component internal state instead of user-visible elements. | Use RTL's `screen.getByRole()` and simulate real interactions with `userEvent`. |
-| **404 error on page refresh on Vercel** | SPA routing requests hit server directly for non-existent `/spots/123` file. | Add `vercel.json` rewrites redirecting all routes to `/index.html`. |
+| `React.lazy failed: Element type is invalid` | You used named export (`export function ...`) instead of default export with `React.lazy`. | Either export default, or use `.then(m => ({ default: m.Component }))`. |
+| 404 Not Found when refreshing on a nested route (e.g. `/favorites`) on Vercel | Vercel server tries to find a physical file named `/favorites.html`. | Add a `vercel.json` rewrites file redirecting all paths to `index.html`. |
+| Vitest says `document is not defined` | Test environment not configured to browser DOM. | In `vite.config.ts`, add `test: { environment: 'jsdom' }`. |
 
 ---
 
-### Week 14: Comprehensive Assignment (Frontend Capstone Milestone)
+## 🎯 Week 14 Hands-on Classroom Exercises
 
-**Objective:** Finalize the Lagos Spots React application with memoization optimizations, route-level code splitting, automated Vitest unit tests, and deploy the live build to a public URL on Vercel.
+### Level 1: Memoization Drills
+1. In `HomePage.tsx`, wrap your spot filter logic in `useMemo`.
+2. Add a `console.log("Filtering spots...")` inside the memo callback.
+3. Add a theme toggle button or counter on the page and verify that clicking it **does not re-run** the filter calculation!
 
-**Requirements:**
-1. **Performance & Code-Splitting:**
-   - `HomePage` filtering memoized via `useMemo`.
-   - `SpotDetailPage`, `SubmitSpotPage`, and `FavoritesPage` code-split using `React.lazy()` with `<Suspense>` fallback loader.
-   - `SpotCard` wrapped in `React.memo` with stable `useCallback` handlers.
-2. **Automated Test Suite:**
-   - Vitest and React Testing Library configured with `jsdom`.
-   - Unit tests written for `SpotCard` (verifying rendering and favorite click callbacks).
-   - Unit tests written for `AddSpotForm` (verifying validation error states on short inputs).
-   - Running `npm run test` executes and passes all test suites.
-3. **Production Deployment:**
-   - Application deployed to Vercel/Netlify with live HTTPS URL.
-   - Verified that refreshing on deep routes (e.g., `/favorites` or `/spots/terra-kulture`) does not throw 404 errors.
-4. **Git Workflow:**
-   - Final frontend milestone tagged `v1.0.0-frontend`, merged into `main`, and pushed to GitHub.
+### Level 2: Component Tests with Vitest
+1. Set up Vitest in your project.
+2. Write a test for `<AddSpotForm />` that verifies:
+   - Typing into the spot name input updates the field.
+   - Clicking submit with valid data calls the submit handler.
+
+### Level 3: Ship Your Project Live!
+1. Run `npm run build` locally and fix any remaining TypeScript compiler errors.
+2. Push your code to GitHub on `main`.
+3. Deploy your project to Vercel or Netlify.
+4. Share your live production link with your classmates and instructor!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [React Official Documentation: Escape Hatches & Performance](https://react.dev/reference/react/useMemo) — Reference documentation for `useMemo`, `useCallback`, and `React.memo`.
-- [Vitest Official Documentation](https://vitest.dev/guide/) — Next-generation testing framework powered by Vite.
-- [Testing Library Official Documentation](https://testing-library.com/docs/react-testing-library/intro/) — Principles of testing user behavior rather than implementation details.
-- [Vercel Single Page Application Deployment Guide](https://vercel.com/docs/frameworks/vite) — Production SPA deployment and rewrite rule documentation.
-
-### Recommended Textbooks & Canonical Books
-- **Testing JavaScript Applications** by Lucas da Costa (Manning) — *Comprehensive guide to unit, integration, and end-to-end testing strategies in JavaScript.*
-- **React Design Patterns and Best Practices** by Carlos Santana Roldán (Packt) — *Performance tuning, suspense boundaries, and code-splitting architecture.*
-
-### Deep Dives & Performance Guides
-- [Kent C. Dodds: Common Mistakes with React Testing Library](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library) — Anti-patterns and best practices in component test assertions.
-- [web.dev: Optimize Largest Contentful Paint (LCP)](https://web.dev/articles/optimize-lcp) — Core Web Vitals optimization guide for code-splitting and asset loading.
+* [React Official Documentation: useMemo](https://react.dev/reference/react/useMemo) — When to use and when to avoid useMemo.
+* [React Official Documentation: useCallback](https://react.dev/reference/react/useCallback) — Keeping callback references stable.
+* [React Official Documentation: Suspense](https://react.dev/reference/react/Suspense) — Declarative loading states and fallbacks.
+* [Testing Library Documentation](https://testing-library.com/docs/react-testing-library/intro/) — The industry standard for user-centric testing.
+* [Vercel Deployment Documentation](https://vercel.com/docs) — Deploying Vite and React SPAs seamlessly.

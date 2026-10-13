@@ -159,18 +159,18 @@ Tailwind enables dark mode styling via the **`dark:` variant modifier**.
 sequenceDiagram
     autonumber
     actor User
-    participant Button as #theme-toggle
-    participant DOM as document.documentElement (&lt;html&gt;)
-    participant Storage as localStorage
+    participant Button as "Theme Toggle"
+    participant DOM as "document.documentElement"
+    participant Storage as "localStorage"
 
-    User->>Button: Clicks Theme Toggle Button
-    Button->>DOM: classList.toggle('dark')
-    alt Dark Class Present
-        DOM-->>Storage: localStorage.setItem('theme', 'dark')
-        Note over DOM: Elements with dark:bg-slate-900<br/>activate dark theme rules
-    else Dark Class Removed
-        DOM-->>Storage: localStorage.setItem('theme', 'light')
-        Note over DOM: Standard light theme rules apply
+    User->>Button: Clicks theme toggle
+    Button->>DOM: classList.toggle("dark")
+    alt Dark class applied
+        DOM-->>Storage: setItem("theme", "dark")
+        Note over DOM: dark:bg-slate-900 rules become active
+    else Dark class removed
+        DOM-->>Storage: setItem("theme", "light")
+        Note over DOM: standard light-theme rules apply
     end
 ```
 

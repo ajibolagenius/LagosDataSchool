@@ -1,452 +1,417 @@
 # Week 12: State, Hooks & Forms
 
-In Week 11, you built static components receiving hardcoded props. This week, you give your application dynamic memory and interactivity using React's foundational hooks: **`useState`**, **`useEffect`**, and **Custom Hooks**. You will master **State Lifting ("Props Down, Events Up")**, understand how **Automatic Batching** and **Closures** behave under the hood, eliminate **Asynchronous Race Conditions**, and architect robust **Type-Safe Controlled Forms**.
+Welcome to Week 12! In Week 11, you learned the building blocks of React: creating components, writing JSX, and passing data down via props. But so far, our components have been static posters.
+
+In a real application:
+- Users click a filter button, and the displayed list changes.
+- Users type into a search input, and the page filters in real time.
+- Users fill out a "Submit a Spot" form, and a new card pops up instantly.
+- Users toggle a favorite ❤️, and it stays saved across page refreshes.
+
+To do all this, components need **memory**. In React, this memory is called **State**.
+
+This week, you master React's most essential hooks: **`useState`**, **`useEffect`**, **Controlled Forms**, and **Custom Hooks**.
 
 ---
 
-## Module 1: `useState` & The React Render Cycle
-
-### 1. The Core Terminology of React Hooks
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **State** | A component's internal, reactive memory that persists between render cycles. | Mutating state via its setter function schedules a re-render of the component and its children. |
-| **Render Phase** | React executes the component function, evaluating JSX expressions to build a new Virtual DOM tree. | Must be a **pure calculation** with zero side effects. |
-| **Commit Phase** | React compares the new Virtual DOM with the old one and writes the minimal differences to the real browser DOM. | Handled synchronously by `react-dom`. |
-| **Automatic Batching** | React groups multiple state updates triggered within event handlers, promises, or timeouts into a **single re-render pass**. | Prevents UI flickering and optimizes performance. |
-| **State Lifting** | Moving state up to the closest common ancestor component when two or more sibling components need to share or synchronize that data. | Maintains the core principle of a Single Source of Truth. |
-
----
-
-### 2. Under the Hood: How `useState` Schedules Re-Renders
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Button as <button onClick>
-    participant Handler as setCategory('food')
-    participant Fiber as React Fiber Engine
-    participant Component as <App /> Component
-    participant DOM as Real Browser DOM
-
-    User->>Button: Clicks "Food" Category Filter
-    Button->>Handler: Invokes setCategory('food')
-    Handler->>Fiber: Schedules re-render with new state
-    Note over Fiber: Batches any other pending state updates
-    Fiber->>Component: Re-evaluates App() with category = 'food'
-    Component-->>Fiber: Returns new Virtual DOM tree
-    Fiber->>Fiber: Reconciliation Diff (Calculates changed nodes)
-    Fiber->>DOM: Updates real DOM nodes in Commit Phase
-    DOM-->>User: Screen repainted with filtered cards
-```
-
----
-
-### 3. The Functional State Update Pattern (Preventing Stale Closures)
-
-When a new state value depends directly on the previous state, passing a raw value can read a **stale snapshot** from an earlier render:
-
-```tsx
-// 🔴 VULNERABLE TO STALE CLOSURES: Multiple synchronous calls will only increment by 1!
-const handleAddTwo = () => {
-  setCount(count + 1); // Reads current snapshot 'count' (e.g. 0 -> 1)
-  setCount(count + 1); // Still reads snapshot 'count' (0 -> 1)
-};
-
-// 🟢 SAFE: Functional Updater receives the guaranteed latest state from the queue
-const handleAddTwoSafe = () => {
-  setCount((prev) => prev + 1); // 0 -> 1
-  setCount((prev) => prev + 1); // 1 -> 2
-};
-```
-
----
-
-### 4. State Lifting Pattern: "Props Down, Events Up"
-
-```mermaid
-graph TD
-    App["<b>App (Parent)</b><br/>Owns State: <code>selectedCategory</code><br/>Calculates: <code>filteredSpots</code>"]
-    Filters["<b>CategoryFilters (Child)</b><br/>Receives: <code>selectedCategory</code><br/>Dispatches: <code>onSelectCategory(cat)</code>"]
-    SpotsList["<b>SpotsList (Child)</b><br/>Receives: <code>spots={filteredSpots}</code>"]
-
-    App -->|"1. Props Down: selectedCategory"| Filters
-    Filters -->|"2. Event Up: onSelectCategory('study')"| App
-    App -->|"3. Props Down: filteredSpots"| SpotsList
-```
-
-```tsx
-// src/components/CategoryFilter.tsx
-import React from 'react';
-import { Category } from '../types';
-
-export interface CategoryFilterProps {
-  selected: Category | 'all';
-  onSelect: (category: Category | 'all') => void;
-  counts: Record<string, number>;
-}
-
-const CATEGORIES: Array<Category | 'all'> = ['all', 'food', 'study', 'nightlife', 'events'];
-
-export const CategoryFilter: React.FC<CategoryFilterProps> = ({ selected, onSelect, counts }) => {
-  return (
-    <div className="flex flex-wrap gap-2 mb-6">
-      {CATEGORIES.map((cat) => {
-        const isSelected = selected === cat;
-        const count = cat === 'all' ? undefined : counts[cat] ?? 0;
-
-        return (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => onSelect(cat)}
-            className={`px-4 py-2 text-sm font-semibold rounded-full transition-all capitalize ${
-              isSelected
-                ? 'bg-orange-600 text-white shadow-sm'
-                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-            }`}
-          >
-            {cat} {count !== undefined && <span className="opacity-75 text-xs">({count})</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-```
-
----
-
-## Module 2: `useEffect` & Asynchronous Side Effects
-
-### 1. The 3 Phases of the `useEffect` Dependency Array
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    Mount["Component Mounts & Renders"] --> Effect["Execute useEffect Callback"]
-    Effect --> CleanupCheck{"Did component re-render<br/>or unmount?"}
-    CleanupCheck -->|"Yes: Run Cleanup Function"| Cleanup["Execute return () => { cleanup }"]
-    Cleanup --> DependencyCheck{"Did dependencies change<br/>(Object.is equality)?"}
-    DependencyCheck -->|"Yes"| Effect
-    DependencyCheck -->|"No"| Idle["Do Nothing / Stay Idle"]
+    M1["<b>Module 1: What is State? (The Memory Mental Model)</b><br/>• Why normal variables don't work in React<br/>• useState from scratch: [state, setState]<br/>• The golden rule: Never mutate state directly!"]
+    --> M2["<b>Module 2: State Lifting ('Props Down, Events Up')</b><br/>• Sharing state between sibling components<br/>• Common parent architecture<br/>• Passing callback functions down"]
+    --> M3["<b>Module 3: Controlled Forms & Inputs</b><br/>• Two-way data binding (value & onChange)<br/>• Building the 'Submit a Spot' form<br/>• Adding items immutably with spread ([newSpot, ...spots])"]
+    --> M4["<b>Module 4: useEffect & Side Effects</b><br/>• What is a side effect?<br/>• The dependency array demystified (once vs on-change)<br/>• Syncing with localStorage automatically"]
+    --> M5["<b>Module 5: Custom Hooks</b><br/>• Packaging reusable stateful logic<br/>• Building a useLocalStorage hook<br/>• Clean, modular code"]
 ```
-
-| Dependency Syntax | When the Effect Runs | Typical Real-World Use Case |
-| :--- | :--- | :--- |
-| `useEffect(fn)` *(No array)* | After **every single render** (mount + updates). | Rare; logging or performance measurements. |
-| `useEffect(fn, [])` *(Empty array)* | Exactly **once on initial mount**. | Subscribing to window resize, initial data fetch from `localStorage`. |
-| `useEffect(fn, [query, page])` | On mount **and whenever `query` or `page` changes**. | Querying an external API based on user search input. |
 
 ---
 
-### 2. Custom Hooks: Encapsulating Debounced Search
+## Module 1: What is State? (The Memory Mental Model)
 
-A **Custom Hook** is a JavaScript function whose name starts with `use` and that can call other React hooks. It allows you to package and reuse stateful logic cleanly:
+### 1. Why Normal Variables Don't Work in React
+
+Imagine writing this inside a component:
 
 ```tsx
-// src/hooks/useDebounce.ts
-import { useState, useEffect } from 'react';
+// 🔴 DOES NOT WORK IN REACT:
+function BrokenCounter() {
+  let count = 0; // Regular variable
 
-export function useDebounce<T>(value: T, delayMs: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  function handleClick() {
+    count++; // count changes in memory, but the screen DOES NOT UPDATE!
+    console.log(count);
+  }
 
-  useEffect(() => {
-    // Schedule state update after delay
-    const timerId = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delayMs);
+  return <button onClick={handleClick}>Clicked {count} times</button>;
+}
+```
 
-    // Cleanup: Clear timer if value changes before delay expires
-    return () => {
-      clearTimeout(timerId);
-    };
-  }, [value, delayMs]);
+Why does this fail?
+1. **Local variables do not trigger a re-render.** React has no idea you changed `count`.
+2. **Every time a component re-renders, local variables are wiped out and recreated from scratch!**
 
-  return debouncedValue;
+> [!NOTE]
+> **The Mental Model:** **State** is React's persistent memory. When you update state via its setter function, React automatically **re-renders** the component and updates the DOM with the new value!
+
+---
+
+### 2. The `useState` Hook from Scratch
+
+To give a component state, import `useState` from `"react"`:
+
+```tsx
+import { useState } from "react";
+
+function Counter() {
+  // Array destructuring:
+  // 1. count: Current value
+  // 2. setCount: Function to update the value & trigger re-render
+  const [count, setCount] = useState<number>(0);
+
+  return (
+    <button
+      onClick={() => setCount(count + 1)}
+      className="px-4 py-2 bg-orange-600 text-white rounded font-bold"
+    >
+      Clicked {count} times
+    </button>
+  );
+}
+```
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Button as &lt;button onClick&gt;
+    participant Setter as setCount(count + 1)
+    participant React as React Engine
+    participant DOM as Screen
+
+    User->>Button: Clicks button
+    Button->>Setter: Calls setCount(1)
+    Setter->>React: Tells React: "State changed from 0 to 1!"
+    React->>React: Re-runs Counter() function with count = 1
+    React->>DOM: Updates screen from "0" to "1"
+```
+
+---
+
+### 3. The Golden Rule of State: NEVER Mutate Directly!
+
+> [!CAUTION]
+> In React, state is considered **immutable** (read-only).
+> - 🔴 **NEVER DO THIS:** `spots.push(newSpot);` or `spot.name = "New Name";`
+> - 🟢 **ALWAYS DO THIS:** Use setter functions and spread syntax to return a new copy:
+>   `setSpots([...spots, newSpot]);`
+
+```tsx
+// Example: Toggling a Boolean Favorite state
+function FavoriteButton() {
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  return (
+    <button
+      onClick={() => setIsFavorite(!isFavorite)}
+      className="text-lg p-2 rounded"
+    >
+      {isFavorite ? "❤️ Saved" : "🤍 Save to Favorites"}
+    </button>
+  );
 }
 ```
 
 ---
 
-### 3. Under the Hood: Preventing Race Conditions with Cleanup Flags
+## Module 2: State Lifting ("Props Down, Events Up")
+
+In **Lagos Spots**, we have two components:
+1. `<CategoryFilter />` (Where the user clicks "Food", "Art", etc.).
+2. `<SpotsList />` (Where the filtered cards are shown).
+
+Where should the `selectedCategory` state live?
+Neither component can see inside the other! Therefore, we **lift state up** to their closest common parent: **`<App />`**.
+
+```mermaid
+graph TD
+    App["<b>&lt;App /&gt; (Parent)</b><br/>• Holds State: <code>selectedCategory</code><br/>• Calculates: <code>filteredSpots</code>"]
+    Filters["<b>&lt;CategoryFilter /&gt; (Child)</b><br/>• Receives: <code>selected</code> category<br/>• Sends Event: <code>onSelectCategory(cat)</code>"]
+    List["<b>&lt;SpotsList /&gt; (Child)</b><br/>• Receives: <code>spots={filteredSpots}</code>"]
+
+    App -->|"Props Down: selected"| Filters
+    Filters -->|"Event Up: onSelectCategory"| App
+    App -->|"Props Down: spots"| List
+```
+
+### Implementing "Props Down, Events Up":
 
 ```tsx
-// src/components/SearchBar.tsx
-import React, { useState, useEffect } from 'react';
-import { useDebounce } from '../hooks/useDebounce';
-import { searchLocations } from '../api';
-import { NominatimLocation } from '../types';
+// src/components/CategoryFilter.tsx
+interface CategoryFilterProps {
+  selected: string;
+  onSelect: (category: string) => void;
+}
 
-export const SearchBar: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState<NominatimLocation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+const CATEGORIES = ["All", "Food", "Art", "Nightlife"];
 
-  const debouncedQuery = useDebounce(searchTerm, 350);
-
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setResults([]);
-      setIsLoading(false);
-      return;
-    }
-
-    // Race condition prevention flag
-    let isCurrent = true;
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    searchLocations(debouncedQuery)
-      .then((data) => {
-        if (isCurrent) {
-          setResults(data);
-        }
-      })
-      .catch((err) => {
-        if (isCurrent) {
-          setErrorMessage('Unable to reach Nominatim search. Please try again.');
-        }
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsLoading(false);
-        }
-      });
-
-    // Cleanup: If user types again, mark previous request as obsolete
-    return () => {
-      isCurrent = false;
-    };
-  }, [debouncedQuery]);
-
+export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
   return (
-    <div className="relative w-full max-w-xl mb-8">
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search neighborhood or venue in Lagos..."
-        className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:outline-none"
-      />
-      {isLoading && (
-        <span className="absolute right-4 top-3.5 text-xs text-orange-600 font-medium">Searching...</span>
-      )}
-      {errorMessage && <p className="text-xs text-rose-500 mt-2">{errorMessage}</p>}
+    <div className="flex gap-2 mb-6">
+      {CATEGORIES.map((cat) => (
+        <button
+          key={cat}
+          onClick={() => onSelect(cat)} // Sends event up to parent!
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+            selected === cat ? "bg-orange-600 text-white" : "bg-slate-200 text-slate-700"
+          }`}
+        >
+          {cat}
+        </button>
+      ))}
     </div>
   );
-};
+}
 ```
 
 ---
 
-## Module 3: Controlled Forms & State Management
+## Module 3: Controlled Forms & Inputs
 
-### 1. Controlled Components vs. Uncontrolled Components
+In vanilla JavaScript, you extracted form values using `document.querySelector('#input').value`.
 
-- **Controlled Component:** Form element whose value is bound to React state via `value={state}` and updated via `onChange={(e) => setState(e.target.value)}`. React is the **Single Source of Truth**.
-- **Uncontrolled Component:** Form element whose state is managed internally by the browser DOM, accessed on-demand via `useRef()`.
+In React, we use **Controlled Components**:
+1. You store the input's current value in React state.
+2. The input displays that value: `value={text}`.
+3. When the user types, `onChange` updates the state: `onChange={(e) => setText(e.target.value)}`.
 
----
+```mermaid
+flowchart LR
+    STATE["React State:<br/>name = 'Terra'"] -->|"value={name}"| INPUT["&lt;input /&gt; displays 'Terra'"]
+    INPUT -->|"User types 'k' &rarr; onChange"| UPDATE["setName('Terrak')"]
+    UPDATE --> STATE
+```
 
-### 2. Type-Safe Multi-Field Form Architecture
+### Complete "Submit a Spot" Form:
 
 ```tsx
 // src/components/AddSpotForm.tsx
-import React, { useState, ChangeEvent, FormEvent } from 'react';
-import { Spot, Category } from '../types';
-
-export interface SpotFormData {
-  name: string;
-  category: Category;
-  area: string;
-  description: string;
-}
+import { useState } from "react";
+import { Spot } from "../types";
 
 interface AddSpotFormProps {
   onAddSpot: (newSpot: Spot) => void;
 }
 
-const INITIAL_STATE: SpotFormData = {
-  name: '',
-  category: 'food',
-  area: '',
-  description: '',
-};
+export function AddSpotForm({ onAddSpot }: AddSpotFormProps) {
+  const [name, setName] = useState("");
+  const [area, setArea] = useState("");
+  const [category, setCategory] = useState("Food");
+  const [fee, setFee] = useState<number>(0);
 
-export const AddSpotForm: React.FC<AddSpotFormProps> = ({ onAddSpot }) => {
-  const [formData, setFormData] = useState<SpotFormData>(INITIAL_STATE);
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = (e: FormEvent) => {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (formData.name.trim().length < 3) {
-      setValidationError('Spot name must be at least 3 characters long.');
-      return;
-    }
-    if (formData.description.trim().length < 15) {
-      setValidationError('Description must be at least 15 characters long.');
+    if (!name.trim() || !area.trim()) {
+      alert("Please fill in spot name and area!");
       return;
     }
 
-    setValidationError(null);
-
-    const createdSpot: Spot = {
-      id: crypto.randomUUID(),
-      ...formData,
-      imageUrl: '/assets/placeholder-spot.jpg',
+    const newSpot: Spot = {
+      id: Date.now(),
+      name: name.trim(),
+      area: area.trim(),
+      category: category,
+      fee: fee
     };
 
-    onAddSpot(createdSpot);
-    setFormData(INITIAL_STATE); // Reset form
-  };
+    onAddSpot(newSpot); // Pass new spot up to App state!
+
+    // Reset input fields:
+    setName("");
+    setArea("");
+    setFee(0);
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-xl">
-      <h3 className="text-xl font-bold mb-4">Add a New Lagos Spot</h3>
-
-      {validationError && (
-        <div className="p-3 mb-4 text-sm text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-800">
-          {validationError}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-            Spot Name
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="e.g. Terra Kulture"
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="category" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-              Category
-            </label>
-            <select
-              id="category"
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none"
-            >
-              <option value="food">Food & Dining</option>
-              <option value="study">Co-working & Study</option>
-              <option value="nightlife">Nightlife & Drinks</option>
-              <option value="events">Arts & Events</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="area" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-              Lagos Area
-            </label>
-            <input
-              id="area"
-              name="area"
-              type="text"
-              value={formData.area}
-              onChange={handleChange}
-              placeholder="e.g. Victoria Island"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none"
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="description" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-            Description
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            rows={3}
-            value={formData.description}
-            onChange={handleChange}
-            placeholder="Describe what makes this spot stand out..."
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none"
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors shadow-sm"
-        >
-          Add Spot to Directory
-        </button>
+    <form onSubmit={handleSubmit} className="p-4 bg-white rounded-lg shadow border space-y-4 mb-8">
+      <h3 className="font-bold text-lg text-slate-800">Add a New Lagos Spot</h3>
+      
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1">Spot Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Terra Kulture"
+          className="w-full border p-2 rounded text-sm"
+        />
       </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1">Area</label>
+          <input
+            type="text"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            placeholder="e.g. Victoria Island"
+            className="w-full border p-2 rounded text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full border p-2 rounded text-sm bg-white"
+          >
+            <option value="Food">Food</option>
+            <option value="Art">Art</option>
+            <option value="Nightlife">Nightlife</option>
+            <option value="Nature">Nature</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" className="w-full bg-orange-600 text-white font-semibold py-2 rounded">
+        Submit Spot
+      </button>
     </form>
   );
-};
+}
 ```
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 4: `useEffect` & Side Effects
 
-| Pitfall | Root Cause | Fix |
+### 1. What is a Side Effect?
+
+In React, the main job of a component function is to **calculate and return JSX**.
+
+A **Side Effect** is anything that happens outside of that rendering process:
+- Saving data to `localStorage`.
+- Fetching data from a backend server API.
+- Setting timers with `setTimeout` or `setInterval`.
+
+React provides the **`useEffect`** hook to run side effects safely.
+
+---
+
+### 2. The Dependency Array Demystified
+
+`useEffect(callbackFunction, [dependencies])` takes two arguments:
+
+```mermaid
+flowchart TD
+    SYNTAX["<b>The Dependency Array Syntax</b>"]
+    SYNTAX --> ONCE["<b>1. Empty Array: []</b><br/>Runs ONCE when component mounts (appears).<br/><i>(Great for initial data loading)</i>"]
+    SYNTAX --> WATCH["<b>2. With Dependencies: [searchTerm]</b><br/>Runs on mount AND whenever searchTerm changes.<br/><i>(Great for live search & syncing)</i>"]
+    SYNTAX --> ALWAYS["<b>3. No Array: (omit)</b><br/>Runs on EVERY single render.<br/><i>(Rarely used; can cause performance issues)</i>"]
+```
+
+#### Practical Example: Syncing Spots to `localStorage`
+```tsx
+import { useState, useEffect } from "react";
+
+export function App() {
+  // 1. Initialize state from localStorage, or use default:
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    const saved = localStorage.getItem("lagos_favs");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // 2. Automatically save to localStorage whenever 'favorites' changes!
+  useEffect(() => {
+    localStorage.setItem("lagos_favs", JSON.stringify(favorites));
+    console.log("Saved updated favorites to storage!");
+  }, [favorites]); // Only runs when favorites changes!
+
+  // ... rest of component ...
+}
+```
+
+---
+
+## Module 5: Custom Hooks (Packaging Reusable Logic)
+
+> [!NOTE]
+> **The Mental Model:** A **Custom Hook** is just a standard JavaScript function whose name starts with `use` (e.g., `useLocalStorage`, `useDebounce`) that can call other React hooks.
+> It allows you to extract state logic so multiple components can share it cleanly without duplicating code!
+
+### Building `useLocalStorage`:
+
+```tsx
+// src/hooks/useLocalStorage.ts
+import { useState, useEffect } from "react";
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  // 1. Get initial value from storage or fallback:
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  // 2. Keep storage in sync whenever value changes:
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (err) {
+      console.error("Failed to save to localStorage:", err);
+    }
+  }, [key, value]);
+
+  return [value, setValue] as const;
+}
+```
+
+#### How Clean It Looks in Your Component:
+```tsx
+// Inside App.tsx:
+const [favorites, setFavorites] = useLocalStorage<number[]>("lagos_favs", []);
+// Now favorites automatically saves to disk with ZERO extra code!
+```
+
+---
+
+## Module 6: Rookie Traps & Debugging Guide
+
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Infinite render loop** | Calling a state updater inside the component body or inside `useEffect` without a dependency array. | Wrap state updates in event handlers or specify exact dependency arrays. |
-| **Stale closure in async hooks** | Forgetting to cancel asynchronous promises when dependencies change before the previous promise settles. | Use a boolean cancellation flag or `AbortController` in the `useEffect` cleanup function. |
-| **Direct state mutation** | `spots.push(newSpot)` does not change array reference, so React skips reconciliation. | Return a new array reference: `setSpots((prev) => [newSpot, ...prev])`. |
+| `Too many re-renders. React limits the number of renders to prevent an infinite loop` | You called a state setter directly in the JSX body: `onClick={setCount(count + 1)}`. | Pass an arrow function instead: `onClick={() => setCount(count + 1)}`. |
+| Updating an array or object doesn't update the screen | You mutated state in place: `spots.push(newSpot); setSpots(spots)`. | Spread into a new array: `setSpots([...spots, newSpot])`. |
+| State shows old value immediately after `setCount` | State updates in React are asynchronous snapshots. | Use the functional updater: `setCount(prev => prev + 1)` or let the re-render handle the new value. |
+| Missing `value` or `onChange` on form input | An input field cannot be typed into or typed text disappears immediately. | Verify both `value={name}` and `onChange={(e) => setName(e.target.value)}` are connected. |
 
 ---
 
-### Week 12: Comprehensive Assignment
+## 🎯 Week 12 Hands-on Classroom Exercises
 
-**Objective:** Equip Lagos Spots with full interactivity using `useState`, `useEffect`, Custom Hooks, and Controlled Forms.
+### Level 1: Category Filter & State Lifting
+1. In `App.tsx`, create `const [category, setCategory] = useState("All")`.
+2. Pass `category` and `setCategory` into `<CategoryFilter />`.
+3. Filter your `spots` array based on `category` and pass the filtered results into `<SpotsList />`.
 
-**Requirements:**
-1. **Interactive Category Filter:**
-   - Lifted state in `App.tsx` coordinating `CategoryFilter` and `SpotsList`.
-   - Category buttons display real-time count badges computed via `.reduce()`.
-2. **Debounced Nominatim Live Search Hook:**
-   - Custom `useDebounce` hook implemented with timer cleanup.
-   - `SearchBar` component querying Nominatim asynchronously with race-condition cleanup flags.
-3. **Controlled Form Implementation:**
-   - `AddSpotForm` component managing state with single-object updater pattern.
-   - Comprehensive validation (name $\ge 3$, description $\ge 15$).
-   - Form submission prepends new spot to state, updates directory immediately, and resets form inputs.
-4. **Git Workflow:**
-   - Developed on branch `feature/state-hooks-forms`, merged via Pull Request, and pulled locally.
+### Level 2: Controlled Search Bar
+1. Create a `<SearchBar />` component with an input field.
+2. Store the `searchTerm` state in `App.tsx`.
+3. Filter spots so that only places matching the search term (case-insensitive) are shown.
+
+### Level 3: Adding Spots Live + Persistent Storage
+1. Build the `<AddSpotForm />` and connect it so that submitting a new place adds it to the list without reloading the page.
+2. Use `useLocalStorage` (or `useEffect`) to save all added spots and favorites so they never disappear when refreshing the browser!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [React Official Documentation: Managing State](https://react.dev/learn/managing-state) — React state architecture, lifting state, and choosing the state structure.
-- [React Official Documentation: Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — Deep dive into the `useEffect` lifecycle, dependency arrays, and cleanup functions.
-- [React Official Documentation: Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks) — Rules and patterns for creating encapsulated custom hooks.
-
-### Recommended Textbooks & Canonical Books
-- **React Hooks in Action** by John Larsen (Manning) — *Comprehensive exploration of useState, useReducer, useEffect, and custom hook abstractions.*
-- **Fullstack React with TypeScript** by Nate Murray, Felipe Coury, Ari Lerner, and Carlos Souza — *Form management, typed state workflows, and architecture patterns.*
-
-### Deep Dives & Articles
-- [Dan Abramov: A Complete Guide to useEffect](https://overreacted.io/a-complete-guide-to-useeffect/) — The definitive technical analysis of closures, dependency arrays, and effect synchronization.
-- [Kent C. Dodds: Stop using isLoading booleans (State Machines in React)](https://kentcdodds.com/blog/stop-using-isloading-booleans) — Clean async lifecycle modeling with discriminated unions.
+* [The Valley of Code: React State](https://thevalleyofcode.com/react/state) — Flavio Copes' beginner guide to `useState`.
+* [React Official Documentation: Managing State](https://react.dev/learn/managing-state) — The official visual guide to thinking in React state.
+* [React Official Documentation: Sharing State Between Components](https://react.dev/learn/sharing-state-between-components) — State lifting explained with step-by-step diagrams.
+* [React Official Documentation: Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — Deep dive into `useEffect` without fear.
+* [React Official Documentation: Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks) — How to package hooks like a pro.

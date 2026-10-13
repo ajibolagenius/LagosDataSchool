@@ -1,352 +1,425 @@
 # Week 11: React Fundamentals
 
-Through Week 10, you built Lagos Spots imperatively: manually querying DOM elements, constructing nodes, attaching event listeners, and tracking state in disparate variables. This week, we transition to **React** — a declarative, component-based UI library. You will master the **Declarative UI paradigm**, the **Virtual DOM & Reconciliation diffing algorithm**, **JSX/TSX compilation mechanics**, **Unidirectional Data Flow**, and **Type-Safe Component Props**.
+Welcome to Week 11! Up until now, you built **Lagos Spots** using vanilla JavaScript and TypeScript: selecting elements with `document.querySelector`, creating elements with `document.createElement`, and manually updating `textContent` or `innerHTML`.
+
+This approach worked fine for small experiments, but as apps grow, manual DOM manipulation becomes painful:
+- If a spot is added, you have to remember to update the list, update the category counts, and update the search results.
+- If data changes in one place, the screen easily falls out of sync.
+- Managing 500 lines of manual DOM updates feels like building a house with individual grains of sand!
+
+This week, you transition to **React** — the world's most popular UI library used by Meta, Netflix, Uber, and Airbnb. You will learn how to build websites using reusable **Components**, write **JSX**, pass data with **Props**, and render dynamic lists.
 
 ---
 
-## Module 1: The Declarative Paradigm & The Virtual DOM
-
-### 1. The Core Terminology of React
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Declarative UI** | Describing *what* the user interface should look like for a given state, rather than step-by-step instructions on *how* to mutate the DOM ($UI = f(state)$). | Eliminates manual DOM manipulation (`appendChild`, `innerHTML`, `querySelector`). |
-| **Component** | A pure JavaScript function that accepts input (`props`) and returns a tree of React Elements (JSX). | Reusable, isolated building blocks of a user interface. |
-| **React Element** | A lightweight, immutable plain JavaScript object describing a DOM node or component (e.g., `{ type: 'h1', props: { children: 'Lagos Spots' } }`). | Created when JSX compiles; does **not** create a real browser DOM node immediately. |
-| **Virtual DOM (VDOM)** | An in-memory representation of the real DOM tree kept in synchronization with the actual browser DOM by ReactDOM. | Allows React to batch calculations and compute minimal DOM mutations. |
-| **Reconciliation** | The algorithmic process where React compares the new Virtual DOM tree against the previous Virtual DOM tree (**Diffing**) and commits only the minimal necessary changes to the real DOM. | Achieves high performance by avoiding full-tree real DOM reflows. |
-| **Unidirectional Data Flow** | Data flows strictly in one direction: downwards from parent components to child components via `props`. | Makes application state predictable and easy to debug. |
-
----
-
-### 2. Imperative vs. Declarative: The Mental Shift
-
-```mermaid
-graph TD
-    subgraph Imperative["Imperative (Vanilla JS - Step-by-Step Mutations)"]
-        I1["1. querySelector('#spots-list')"] --> I2["2. createElement('article')"]
-        I2 --> I3["3. el.className = 'spot-card'"]
-        I3 --> I4["4. appendChild(el)"]
-    end
-
-    subgraph Declarative["Declarative (React - Pure State to UI Mapping)"]
-        D1["State: { spots: [...] }"] --> D2["UI = f(state)"]
-        D2 --> D3["React computes minimal diff & updates real DOM"]
-    end
-```
-
----
-
-### 3. Under the Hood: JSX Compilation & The Virtual DOM Diff
-
-JSX is **not HTML**. It is a syntax extension for JavaScript that compiles at build time via the Babel/SWC compiler into standard `jsx-runtime` function calls:
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    JSX["<b>1. JSX Source Code</b><br/>&lt;SpotCard name='Bogobiri' area='Ikoyi' /&gt;"] -->|"Vite / SWC Compiler"| JS["<b>2. Compiled JavaScript</b><br/>jsx(SpotCard, { name: 'Bogobiri', area: 'Ikoyi' })"]
-    JS -->|"Runtime Execution"| VNode["<b>3. Virtual DOM Object (VNode)</b><br/>{<br/>  type: SpotCard,<br/>  props: { name: 'Bogobiri', area: 'Ikoyi' }<br/>}"]
-    VNode -->|"Reconciliation Diff"| RealDOM["<b>4. Real Browser DOM</b><br/>&lt;article class='spot-card'&gt;...&lt;/article&gt;"]
-```
-
-#### The Reconciliation Diffing Algorithm ($O(n)$ Heuristic):
-When state or props change:
-1. **Different Element Types:** If root elements have different types (e.g., changing from `<div>` to `<section>`), React tears down the old tree, unmounts all children, and builds the new tree from scratch.
-2. **Same Element Types:** When comparing two React DOM elements of the same type, React looks at the attributes of both, keeps the underlying DOM node, and only updates the changed attributes (`className`, `style`).
-3. **Recursing On Children (`key` Prop):** React iterates over both lists of children simultaneously. Keys tell React which items were added, removed, or reordered without re-rendering the entire list.
-
----
-
-## Module 2: Component Architecture & Typed Props
-
-### 1. Scaffolding Lagos Spots in React + Vite + TypeScript
-
-```bash
-# 1. Scaffold React + TypeScript project
-npm create vite@latest lagos-spots-react -- --template react-ts
-
-# 2. Install dependencies & Tailwind CSS v4
-cd lagos-spots-react
-npm install
-npm install tailwindcss @tailwindcss/vite
-```
-
-```ts
-// vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
-import tailwindcss from '@tailwindcss/vite';
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-});
+    M1["<b>Module 1: The React Mental Model (The Lego Analogy)</b><br/>• Imperative (Vanilla JS) vs Declarative (React)<br/>• What is a Component?<br/>• Scaffolding with Vite + React + TypeScript"]
+    --> M2["<b>Module 2: JSX from Scratch</b><br/>• HTML inside JavaScript<br/>• The 4 rules of JSX (className, self-closing, etc.)<br/>• Embedding JS expressions with { }"]
+    --> M3["<b>Module 3: Props (Customizing Components)</b><br/>• Passing data into components<br/>• Destructuring props with TypeScript types<br/>• The special 'children' prop"]
+    --> M4["<b>Module 4: Rendering Lists with .map() & Keys</b><br/>• Transforming data arrays into JSX elements<br/>• Why React requires a 'key' prop (The Nametag Analogy)<br/>• Common key mistakes to avoid"]
+    --> M5["<b>Module 5: Conditional Rendering</b><br/>• Ternary operators ({isFavorite ? '❤️' : '🤍'})<br/>• Logical AND short-circuiting ({isOpen && ...})<br/>• Handling empty states in UI"]
+    --> M6["<b>Module 6: Rebuilding Lagos Spots as a React SPA</b><br/>• Header, CategoryFilter, SpotCard, SpotsList<br/>• Clean component directory structure"]
 ```
 
 ---
 
-### 2. Building Type-Safe Functional Components
+## Module 1: The React Mental Model (The Lego Analogy)
 
-Props are passed into components like HTML attributes, but can receive any JavaScript data type (strings, numbers, objects, arrays, callback functions):
+### 1. Imperative vs. Declarative Programming
 
-```tsx
-// src/components/Badge.tsx
-import React from 'react';
-
-export interface BadgeProps {
-  category: 'food' | 'study' | 'nightlife' | 'events';
-  children: React.ReactNode; // Allows passing nested text or elements
-}
-
-const categoryStyles: Record<BadgeProps['category'], string> = {
-  food: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  study: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-  nightlife: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
-  events: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-};
-
-export const Badge: React.FC<BadgeProps> = ({ category, children }) => {
-  return (
-    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${categoryStyles[category]}`}>
-      {children}
-    </span>
-  );
-};
-```
-
-```tsx
-// src/components/SpotCard.tsx
-import React from 'react';
-import { Spot } from '../types';
-import { Badge } from './Badge';
-
-export interface SpotCardProps {
-  spot: Spot;
-  isFavorite?: boolean;
-  onToggleFavorite?: (spotId: string) => void;
-}
-
-export const SpotCard: React.FC<SpotCardProps> = ({ spot, isFavorite = false, onToggleFavorite }) => {
-  return (
-    <article className="flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-all">
-      <div className="flex justify-between items-start gap-2 mb-3">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{spot.name}</h3>
-        <Badge category={spot.category}>{spot.category}</Badge>
-      </div>
-
-      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">📍 {spot.area}</p>
-      <p className="text-sm text-slate-600 dark:text-slate-300 flex-grow mb-4">{spot.description}</p>
-
-      <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-        <button
-          type="button"
-          onClick={() => onToggleFavorite?.(spot.id)}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-            isFavorite
-              ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40 dark:border-rose-800'
-              : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300'
-          }`}
-          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {isFavorite ? '❤️ Favorited' : '🤍 Save'}
-        </button>
-
-        <a
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.area} Lagos`)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400"
-        >
-          Directions &rarr;
-        </a>
-      </div>
-    </article>
-  );
-};
-```
-
----
-
-## Module 3: Rendering Collections & The Critical `key` Prop
-
-### 1. Under the Hood: Why Array Indexes Fail as Keys
-
-When rendering lists with `.map()`, React requires a **`key` prop** on the outermost element returned by the callback:
-
-```tsx
-// 🟢 CORRECT: Using a stable, unique ID
-{spots.map((spot) => (
-  <SpotCard key={spot.id} spot={spot} />
-))}
-
-// 🔴 DANGEROUS ANTI-PATTERN: Using array index as key
-{spots.map((spot, index) => (
-  <SpotCard key={index} spot={spot} />
-))}
-```
-
-```mermaid
-sequenceDiagram
-    autonumber
-    note over React: Scenario: Array Index as Key [key=0, key=1, key=2]
-    note over React: User deletes Spot #0 ('Terra Kulture')
-    Note over React: Old List: [0: Terra Kulture, 1: Bogobiri, 2: Workstation]<br/>New List: [0: Bogobiri, 1: Workstation]
-    note over React: React compares key=0 with new key=0: Thinks item #0 wasn't deleted,<br/>mutates props in-place, causing internal component state / input focus corruption!
-```
-
-#### The Rules of React Keys:
-1. **Keys must be unique among siblings:** Keys do not need to be globally unique across the whole app, only unique within the mapping array.
-2. **Keys must remain stable across renders:** Do not generate keys on the fly like `key={Math.random()}` or `key={crypto.randomUUID()}` inside JSX. Doing so forces React to destroy and recreate the real DOM node on every single render.
-
----
-
-### 2. Component Composition with `props.children`
-
-```tsx
-// src/components/Container.tsx
-import React from 'react';
-
-interface ContainerProps {
-  children: React.ReactNode;
-}
-
-export const Container: React.FC<ContainerProps> = ({ children }) => {
-  return <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">{children}</div>;
-};
-```
-
----
-
-## Module 4: Assembling the Lagos Spots Application Tree
+> [!NOTE]
+> **The Mental Model:**
+> - **Imperative (Vanilla JavaScript):** You act like a micromanager. You give the browser step-by-step instructions: *"Find the section with ID spots-list, create an article tag, add a class, set its text, append it to the section."*
+> - **Declarative (React):** You act like an architect. You simply describe what the UI should look like for a given set of data ($UI = f(data)$). When the data changes, React automatically handles all the tedious DOM updates behind the scenes!
 
 ```mermaid
 graph TD
-    App["&lt;App /&gt;"]
-    Header["&lt;Header /&gt;"]
-    Container["&lt;Container /&gt;"]
-    SearchSection["&lt;section className='search'&gt;"]
-    SpotsGrid["&lt;div className='grid'&gt;"]
-    SpotCard1["&lt;SpotCard key='1' /&gt;"]
-    SpotCard2["&lt;SpotCard key='2' /&gt;"]
-    SpotCardN["&lt;SpotCard key='N' /&gt;"]
-    Badge["&lt;Badge /&gt;"]
+    subgraph Imperative["Imperative (Vanilla JS - Manual Steps)"]
+        I1["1. querySelector('#spots')"] --> I2["2. createElement('article')"]
+        I2 --> I3["3. el.className = 'card'"]
+        I3 --> I4["4. parent.append(el)"]
+    end
 
-    App --> Header
-    App --> Container
-    Container --> SearchSection
-    Container --> SpotsGrid
-    SpotsGrid --> SpotCard1
-    SpotsGrid --> SpotCard2
-    SpotsGrid --> SpotCardN
-    SpotCard1 --> Badge
+    subgraph Declarative["Declarative (React - Declaring Output)"]
+        D1["Data: [spots]"] --> D2["return &lt;SpotCard spot={spot} /&gt;"]
+        D2 --> D3["React automatically updates the DOM!"]
+    end
+```
+
+---
+
+### 2. What is a Component? (The Lego Brick)
+
+A **Component** is a reusable, self-contained piece of UI. Think of components as **custom Lego bricks**:
+- You build a `<Header />` brick.
+- You build a `<SpotCard />` brick.
+- You build a `<Footer />` brick.
+- You snap them all together inside an `<App />` component!
+
+```mermaid
+flowchart TD
+    APP["&lt;App /&gt; (Main Page)"] --> NAV["&lt;Navbar /&gt;"]
+    APP --> SEARCH["&lt;SearchBar /&gt;"]
+    APP --> LIST["&lt;SpotsList /&gt;"]
+    LIST --> CARD1["&lt;SpotCard /&gt;"]
+    LIST --> CARD2["&lt;SpotCard /&gt;"]
+    LIST --> CARD3["&lt;SpotCard /&gt;"]
+    APP --> FOOTER["&lt;Footer /&gt;"]
+```
+
+In React, a component is just a **regular JavaScript function** that:
+1. Starts with a **Capital Letter** (e.g., `SpotCard`, not `spotCard`).
+2. Returns **JSX** (HTML-like markup).
+
+```tsx
+// Your very first React Component!
+function WelcomeBanner() {
+  return (
+    <div className="banner">
+      <h1>Welcome to Lagos Spots</h1>
+      <p>Discover the best food, art, and music across Lagos.</p>
+    </div>
+  );
+}
+```
+
+---
+
+### 3. Scaffolding Lagos Spots with Vite + React + TypeScript
+
+Open your terminal and run:
+
+```bash
+# 1. Create a new React + TypeScript project with Vite
+npm create vite@latest lagos-spots-react -- --template react-ts
+
+# 2. Enter project folder and install dependencies
+cd lagos-spots-react
+npm install
+
+# 3. Start the local development server
+npm run dev
+```
+
+Open the printed URL (usually `http://localhost:5173`) in your browser to see your live React app!
+
+---
+
+## Module 2: JSX from Scratch
+
+**JSX** stands for JavaScript XML. It allows you to write HTML tags directly inside your JavaScript code. 
+
+Behind the scenes, Vite compiles your JSX into standard JavaScript objects called **React Elements**.
+
+### The 4 Crucial Rules of JSX
+
+```mermaid
+flowchart LR
+    R1["1. Single Root Element<br/>(Wrap with &lt;&gt; &lt;/&gt;)"] --- R2["2. className instead of class"]
+    R3["3. Close ALL tags<br/>(&lt;img /&gt;, &lt;input /&gt;)"] --- R4["4. camelCase attributes<br/>(onClick, htmlFor)"]
+```
+
+#### Rule 1: Every Component Must Return a Single Root Element
+If you have multiple tags, wrap them inside a **Fragment** (`<> ... </>`):
+```tsx
+// 🔴 ERROR: Adjacent JSX elements must be wrapped:
+// return ( <h1>Title</h1> <p>Text</p> );
+
+// 🟢 CORRECT (Using a React Fragment):
+return (
+  <>
+    <h1>Title</h1>
+    <p>Text</p>
+  </>
+);
+```
+
+#### Rule 2: Use `className` Instead of `class`
+Because `class` is a reserved keyword in JavaScript, React uses `className`:
+```tsx
+// 🔴 Wrong: <div class="card">
+// 🟢 Correct:
+<div className="bg-white rounded-lg p-4 shadow">
+```
+
+#### Rule 3: All Tags Must Self-Close
+In HTML, `<img>` or `<input>` didn't require closing tags. In JSX, they **must** close with `/>`:
+```tsx
+<img src="/assets/spot.jpg" alt="Bogobiri" />
+<input type="text" placeholder="Search..." />
+```
+
+#### Rule 4: Embedding JavaScript Expressions with `{}`
+Any valid JavaScript expression (variables, calculations, function calls) can be injected into JSX by wrapping it in curly braces `{}`:
+
+```tsx
+function SpotOverview() {
+  const spotName = "Terra Kulture";
+  const entryFee = 0;
+  const isWeekend = true;
+
+  return (
+    <div>
+      {/* 1. Embedding a string variable */}
+      <h2>{spotName}</h2>
+
+      {/* 2. Performing a calculation */}
+      <p>Group Ticket (4 people): ₦{entryFee * 4}</p>
+
+      {/* 3. Evaluating a ternary condition */}
+      <p>Status: {isWeekend ? "Crowded" : "Quiet"}</p>
+    </div>
+  );
+}
+```
+
+---
+
+## Module 3: Props (Customizing Components)
+
+### 1. What are Props? (The Custom Order Analogy)
+
+> [!NOTE]
+> **The Mental Model:** When you order jollof rice at a restaurant, you customize it: *"Give me 1 plate, extra fried plantain, no spicy pepper."*
+> **Props** (short for properties) are the customized inputs you pass into a component.
+
+Just like HTML attributes (`src`, `href`), you pass props to custom components:
+
+```tsx
+<SpotCard name="Terra Kulture" area="Victoria Island" fee={0} />
+<SpotCard name="Bogobiri" area="Ikoyi" fee={2500} />
+```
+
+---
+
+### 2. Typing and Receiving Props with TypeScript
+
+In TypeScript, we always define an `interface` for our props, and destructure them directly in the function arguments:
+
+```tsx
+// src/components/SpotCard.tsx
+
+// 1. Define the blueprint for this component's props:
+interface SpotCardProps {
+  name: string;
+  area: string;
+  category: string;
+  fee: number;
+  isFavorite?: boolean; // Optional prop
+}
+
+// 2. Destructure props with type annotation:
+export function SpotCard({ name, area, category, fee, isFavorite = false }: SpotCardProps) {
+  return (
+    <article className="border rounded-lg p-4 bg-white shadow-sm mb-3">
+      <div className="flex justify-between items-start">
+        <h3 className="text-lg font-bold text-slate-800">{name}</h3>
+        <span className="text-xs bg-orange-100 text-orange-700 font-semibold px-2 py-1 rounded">
+          {category}
+        </span>
+      </div>
+
+      <p className="text-xs text-slate-500 mt-1">📍 {area}</p>
+      
+      <p className="text-sm font-semibold text-slate-700 mt-3">
+        {fee === 0 ? "Free Entry" : `₦${fee.toLocaleString()}`}
+      </p>
+
+      <button className="mt-3 text-sm px-3 py-1 rounded border">
+        {isFavorite ? "❤️ Favorited" : "🤍 Save"}
+      </button>
+    </article>
+  );
+}
+```
+
+---
+
+### 3. The Special `children` Prop
+
+What if you want to pass nested text or other HTML elements inside a component, like `<Badge>Art & Culture</Badge>`?
+
+React automatically provides a special prop named **`children`**:
+
+```tsx
+// src/components/Badge.tsx
+import React from "react";
+
+interface BadgeProps {
+  color?: string;
+  children: React.ReactNode; // Accepts text, JSX, or other components!
+}
+
+export function Badge({ color = "bg-orange-100 text-orange-800", children }: BadgeProps) {
+  return (
+    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${color}`}>
+      {children}
+    </span>
+  );
+}
+
+// Usage:
+// <Badge>Food</Badge>
+// <Badge color="bg-blue-100 text-blue-800">Study Spot</Badge>
+```
+
+---
+
+## Module 4: Rendering Lists with `.map()` & The `key` Prop
+
+In Week 7, you learned `.map()`. In React, `.map()` is the primary way we transform an array of data into an array of UI cards!
+
+```mermaid
+flowchart LR
+    DATA["Array of Spots<br/>[{ id: 1, ... }, { id: 2, ... }]"] 
+    --> MAP[".map(spot =&gt; &lt;SpotCard key={spot.id} ... /&gt;)"] 
+    --> JSX["List of Rendered React Cards"]
+```
+
+```tsx
+// src/components/SpotsList.tsx
+import { SpotCard } from "./SpotCard";
+
+const initialSpots = [
+  { id: 1, name: "Terra Kulture", area: "Victoria Island", category: "Food", fee: 0 },
+  { id: 2, name: "Nike Art Gallery", area: "Lekki", category: "Art", fee: 0 },
+  { id: 3, name: "Bogobiri House", area: "Ikoyi", category: "Music", fee: 2500 }
+];
+
+export function SpotsList() {
+  return (
+    <section className="space-y-4">
+      {initialSpots.map((spot) => (
+        <SpotCard
+          key={spot.id} // ⚠️ MANDATORY key prop!
+          name={spot.name}
+          area={spot.area}
+          category={spot.category}
+          fee={spot.fee}
+        />
+      ))}
+    </section>
+  );
+}
+```
+
+### Why is the `key` Prop Mandatory? (The Nametag Analogy)
+
+> [!CAUTION]
+> **The Mental Model:** Imagine 30 students in a classroom. If a student leaves and another enters, the teacher doesn't kick everyone out and start over. The teacher looks at their **ID badge** (`key`) to know exactly who arrived or who left.
+> 
+> Without a unique `key` (like `spot.id`), React cannot tell which item changed, causing subtle bugs and poor rendering performance. **Never use array index (`i`) as key if items can be sorted or deleted!**
+
+---
+
+## Module 5: Conditional Rendering
+
+Web apps constantly show or hide elements based on conditions:
+
+### 1. Ternary Operator (`condition ? <TrueJSX /> : <FalseJSX />`)
+Best for displaying one of two choices:
+```tsx
+function FavoriteButton({ isSaved }: { isSaved: boolean }) {
+  return (
+    <button className="text-sm border px-3 py-1 rounded">
+      {isSaved ? "❤️ Saved to Favorites" : "🤍 Add to Favorites"}
+    </button>
+  );
+}
+```
+
+### 2. Logical AND (`condition && <JSX />`)
+Best when you want to render something **only if the condition is true**, and nothing otherwise:
+```tsx
+function SpotCard({ name, isFree }: { name: string; isFree: boolean }) {
+  return (
+    <div className="card">
+      <h3>{name}</h3>
+      {isFree && (
+        <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">
+          FREE ADMISSION
+        </span>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Module 6: Rebuilding Lagos Spots as a React SPA
+
+Here is the clean component architecture for our React application:
+
+```
+src/
+├── types.ts              # Data interfaces (Spot, Category)
+├── components/
+│   ├── Header.tsx        # Logo, navigation & site title
+│   ├── Badge.tsx         # Reusable category chip
+│   ├── SpotCard.tsx      # Single spot listing card
+│   └── SpotsList.tsx     # Grid mapping over spots
+└── App.tsx               # Root component assembling the page
 ```
 
 ```tsx
 // src/App.tsx
-import React from 'react';
-import { Spot } from './types';
-import { Header } from './components/Header';
-import { Container } from './components/Container';
-import { SpotCard } from './components/SpotCard';
+import { Header } from "./components/Header";
+import { SpotsList } from "./components/SpotsList";
 
-const INITIAL_SPOTS: Spot[] = [
-  {
-    id: 'terra-kulture',
-    name: 'Terra Kulture',
-    category: 'food',
-    area: 'Victoria Island',
-    description: 'Cultural hub featuring traditional Nigerian cuisine, art exhibitions, and theatre.',
-    imageUrl: '/assets/terra-kulture.jpg',
-  },
-  {
-    id: 'bogobiri',
-    name: 'Bogobiri House',
-    category: 'events',
-    area: 'Ikoyi',
-    description: 'Boutique hotel, African art gallery, open-mic poetry, and live Afrobeat music hub.',
-    imageUrl: '/assets/bogobiri.jpg',
-  },
-  {
-    id: 'workstation',
-    name: 'Workstation Bar Beach',
-    category: 'study',
-    area: 'Victoria Island',
-    description: 'High-speed internet co-working hub with uninterrupted power and coffee bar.',
-    imageUrl: '/assets/workstation.jpg',
-  },
-];
-
-export const App: React.FC = () => {
+export function App() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <Header />
-      
-      <main className="py-8">
-        <Container>
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold tracking-tight">Explore Lagos Spots</h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Curated hangouts, study spaces, and cultural venues across Lagos.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {INITIAL_SPOTS.map((spot) => (
-              <SpotCard key={spot.id} spot={spot} />
-            ))}
-          </div>
-        </Container>
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        <h2 className="text-2xl font-bold mb-6">Popular Places in Lagos</h2>
+        <SpotsList />
       </main>
     </div>
   );
-};
+}
 
 export default App;
 ```
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 7: Rookie Traps & Debugging Guide
 
-| Pitfall | Consequence | Fix |
+| Error Message | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Mutating `props` in child components** | Violates unidirectional data flow and creates stale render loops. | Treat all props as strictly immutable read-only values. |
-| **Returning multiple un-nested elements** | Fails JSX compilation because JavaScript functions can only return one value. | Wrap sibling elements in `<React.Fragment>` or `<> ... </>`. |
-| **Instantiating keys on inner children** | React cannot track the root mapped component. | Always place the `key` prop on the topmost JSX element returned inside `.map()`. |
+| `Adjacent JSX elements must be wrapped in an enclosing tag` | Returning two sibling tags without a parent. | Wrap them in a Fragment `<> ... </>` or a `<div>`. |
+| `Each child in a list should have a unique 'key' prop` | Forgot to add `key={item.id}` inside your `.map()` call. | Add a unique identifier: `<SpotCard key={spot.id} ... />`. |
+| `Objects are not valid as a React child` | You tried to render an entire object directly: `{spot}` instead of `{spot.name}`. | Pick a string or number property from the object: `{spot.name}`. |
+| Component not displaying on screen | Function name starts with lowercase (e.g., `function spotCard`). | Always start component names with a Capital letter: `function SpotCard`. |
 
 ---
 
-### Week 11: Comprehensive Assignment
+## 🎯 Week 11 Hands-on Classroom Exercises
 
-**Objective:** Rebuild the static frontend of Lagos Spots as a modular, type-safe React + TypeScript component tree powered by Vite and Tailwind CSS.
+### Level 1: Your First Components
+1. In your new React project, create a `<Navbar />` component that displays the Lagos Spots logo and two navigation links ("Explore" and "Submit").
+2. Create a `<Footer />` component with copyright and student credits.
+3. Import both into `App.tsx` and verify they render on screen.
 
-**Requirements:**
-1. **Project Setup:**
-   - Scaffolded with Vite (`react-ts` template) with Tailwind CSS v4 configured.
-2. **Component Decomposition:**
-   - `Header`: Site branding, navigation links, and theme toggle placeholder.
-   - `Container`: Reusable layout constraint wrapper utilizing `props.children`.
-   - `Badge`: Dynamic category badge with typed color variations.
-   - `SpotCard`: Typed spot card component rendering name, badge, area, description, and external Google Maps direction links.
-3. **Collection Rendering:**
-   - Curated dataset mapped into `<SpotCard />` components using stable, unique `spot.id` strings as keys (no array indexes).
-4. **Strict Type Safety:**
-   - All component props defined via explicit TypeScript interfaces (`SpotCardProps`, `BadgeProps`).
-   - Zero ESLint or TypeScript compile errors.
-5. **Git Workflow:**
-   - Developed on branch `feature/react-fundamentals`, merged via Pull Request, and pulled locally.
+### Level 2: Reusable Badge Component
+1. Create a `<Badge />` component that accepts a `text` prop and an optional `color` prop.
+2. Render badges for `"Food"`, `"Art"`, and `"Nightlife"` inside a category preview row.
+
+### Level 3: Porting Lagos Spots Cards to React
+1. Create a `Spot` interface in `src/types.ts`.
+2. Create a `<SpotCard />` component that receives a `spot` object via props and renders its name, area, fee, and category.
+3. Create an array of 5 Lagos spots in `App.tsx` and render them using `.map()`.
+4. Add a "Free Entry" tag that renders conditionally only when `spot.fee === 0`.
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [React Official Documentation (react.dev)](https://react.dev/learn) — The official, interactive guide to thinking in React, describing the UI, and pure components.
-- [React GitHub Repository](https://github.com/facebook/react) — Source code repository for React core, Fiber reconciler, and JSX runtimes.
-- [Vite Official Guide: React Integration](https://vite.dev/guide/#trying-vite-online) — Fast refresh and JSX compilation configuration with `@vitejs/plugin-react`.
-
-### Recommended Textbooks & Canonical Books
-- **Learning React: Modern Patterns for Developing React Apps (2nd Edition)** by Alex Banks and Eve Porcello (O'Reilly) — *Chapters 1–5: Functional JavaScript, JSX compilation, and Pure Component Trees.*
-- **The Road to React** by Robin Wieruch — *Clear, pragmatic walkthrough of component composition, props, and unidirectional data flow.*
-
-### Deep Dives & Architectural Guides
-- [React Fiber Architecture by Andrew Clark](https://github.com/acdlite/react-fiber-architecture) — The foundational technical document explaining the internal mechanics of Fiber reconciliation and incremental rendering.
-- [Overreacted.io by Dan Abramov](https://overreacted.io/) — Foundational conceptual essays including "Writing Resilient Components" and "How Does React Tell a Class from a Function?".
+* [The Valley of Code: React Tutorial](https://thevalleyofcode.com/react/) — Flavio Copes' gentle, beginner-focused introduction to React and JSX.
+* [React Official Documentation: Describing the UI](https://react.dev/learn/describing-the-ui) — The outstanding official React docs on components and JSX.
+* [React Official Documentation: Passing Props to a Component](https://react.dev/learn/passing-props-to-a-component) — How props make components flexible.
+* [React Official Documentation: Rendering Lists](https://react.dev/learn/rendering-lists) — Deep dive into `.map()` and the importance of `key`.
+* [MDN Web Docs: Getting Started with React](https://developer.mozilla.org/en-US/docs/Learn/Tools_and_testing/Client-side_JavaScript_frameworks/React_getting_started) — Mozilla guide to modern React workflows.

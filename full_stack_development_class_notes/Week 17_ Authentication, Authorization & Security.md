@@ -1,402 +1,374 @@
 # Week 17: Authentication, Authorization & Security
 
-In Week 16, you built persistent database queries for Flowboard. However, the API currently has no concept of user identity: any anonymous client can query, modify, or delete any board in the database. This week, you build a production-grade **Authentication (AuthN)** and **Authorization (AuthZ)** system: implementing **Cryptographic Password Hashing with Bcrypt**, **Stateful Session Authentication via Secure HttpOnly Cookies**, **JSON Web Tokens (JWT) analysis**, **Insecure Direct Object Reference (IDOR) prevention**, and **OWASP Security Hardening**.
+Welcome to Week 17! In Week 16, you connected Flowboard to a live PostgreSQL database. However, right now your API has zero security:
+- Anyone in the world can delete anyone else's board simply by guessing an ID!
+- There are no user accounts, passwords, or permissions.
+
+In the real world, web applications must protect user data. When you log into Twitter or your bank:
+1. The app verifies **who you are** (**Authentication**).
+2. The app verifies **what you are allowed to see and touch** (**Authorization**).
+
+This week, you master production-grade **Password Hashing with Bcrypt**, **JSON Web Tokens (JWT)**, **Authentication Middleware**, and **Authorization Guards** in Express.
 
 ---
 
-## Module 1: Cryptographic Foundations & Password Hashing
-
-### 1. The Core Terminology of Application Security
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Authentication (AuthN)** | The process of verifying *who a user is* (e.g., matching email and hashed password). | Answers: *"Are you who you claim to be?"* |
-| **Authorization (AuthZ)** | The process of verifying *what permissions an authenticated user has* (e.g., can this user delete Board #42?). | Answers: *"Are you allowed to perform this action?"* |
-| **Cryptographic Hashing** | A one-way mathematical function that converts arbitrary-length input into a fixed-length string that is computationally impossible to invert. | Passwords must **never** be stored plaintext or encrypted; they must always be hashed. |
-| **Salt** | A cryptographically secure random string concatenated with a password before hashing. | Guarantees that two users with the identical password ("Password123!") produce completely different hash strings, defeating **Rainbow Table** attacks. |
-| **Cost Factor (Salt Rounds)** | A parameter controlling how many iterations ($2^{\text{cost}}$) the hashing algorithm performs. | Deliberately slows down computation (e.g., 100ms per hash) to make offline brute-force attacks computationally unfeasible. |
-| **IDOR Vulnerability** | Insecure Direct Object Reference: Occurs when an API allows a user to access or mutate a database record by guessing its ID without validating ownership. | Prevented by strictly enforcing `WHERE user_id = req.user.id` on every query. |
-
----
-
-### 2. Under the Hood: Hashing vs. Encryption vs. Encoding
+## Pedagogical Roadmap
 
 ```mermaid
-graph TD
-    subgraph OneWay["One-Way Hashing (Bcrypt / Argon2)"]
-        P1["Password: 'Secret123'"] --> H1["Bcrypt Hash ($2b$12$...)"]
-        H1 -.->|"CANNOT BE REVERSED"| P1
-    end
-
-    subgraph TwoWay["Two-Way Encryption (AES-256)"]
-        P2["Data: 'Sensitive SSN'"] -->|"Encrypt with Secret Key"| E2["Ciphertext"]
-        E2 -->|"Decrypt with Secret Key"| P2
-    end
-
-    subgraph Encoding["Reversible Encoding (Base64)"]
-        P3["Text: 'hello'"] -->|"ASCII conversion (No Secret)"| B3["'aGVsbG8='"]
-        B3 -->|"Decode"| P3
-    end
+flowchart TD
+    M1["<b>Module 1: Authentication vs. Authorization</b><br/>• AuthN (Passport) vs AuthZ (VIP Lounge Badge)<br/>• Why plain-text passwords are a crime<br/>• Hashing with Bcrypt (The Smoothie Mental Model)"]
+    --> M2["<b>Module 2: How Tokens Work (JWTs)</b><br/>• The Concert Wristband Analogy<br/>• Anatomy of a JWT: Header, Payload, Signature<br/>• Signing and verifying tokens"]
+    --> M3["<b>Module 3: Building User Registration & Login</b><br/>• POST /api/auth/register (Hashing & saving)<br/>• POST /api/auth/login (Comparing hashes & issuing token)<br/>• Storing JWTs safely in the client"]
+    --> M4["<b>Module 4: Protecting Routes with Middleware</b><br/>• The Bouncer Middleware: authenticateToken<br/>• Attaching req.user to incoming requests<br/>• Returning 401 Unauthorized vs 403 Forbidden"]
+    --> M5["<b>Module 5: Authorization & Preventing IDOR</b><br/>• Insecure Direct Object References explained<br/>• Enforcing user ownership in SQL queries<br/>• Users only see their own boards!"]
 ```
 
 ---
 
-### 3. Anatomy of a Bcrypt Hash String
+## Module 1: Authentication vs. Authorization & Password Hashing
 
-When Bcrypt hashes a password, it formats the output into a single standardized 60-character string:
+### 1. AuthN vs. AuthZ (The Airport Mental Model)
 
+> [!NOTE]
+> **The Mental Model:**
+> - **Authentication (AuthN):** Showing your **International Passport** at airport immigration. It answers: *"Are you truly who you claim to be?"*
+> - **Authorization (AuthZ):** Showing your **First-Class Boarding Pass** at the VIP lounge door. It answers: *"Do you have permission to enter this room and drink the free champagne?"*
+
+---
+
+### 2. Password Hashing: The Fruit Smoothie Mental Model
+
+> [!CAUTION]
+> **The #1 Rule of Backend Engineering:** **NEVER, EVER store passwords in plain text!**
+> If your database is ever leaked or hacked, plain-text passwords expose every single user to identity theft.
+
+How do we verify a user's password without saving their real password? We use a **One-Way Cryptographic Hash** called **Bcrypt**:
+
+> [!TIP]
+> **The Mental Model:** Think of Bcrypt as a **blender**.
+> - You put an apple and a mango into the blender $\to$ you get a specific smoothie.
+> - Anyone with the same recipe gets the exact same smoothie.
+> - But **nobody can un-blend a smoothie back into an apple!**
+> 
+> When a user logs in, you put their submitted password into the blender and compare the smoothies. If the smoothies match, the password was correct!
+
+```mermaid
+flowchart LR
+    PWD["Plain Password: 'mypassword123'"] --> BCRYPT["Bcrypt Blender + Salt"] --> HASH["Stored Hash: $2b$10$e8uq..."]
+    HASH -.->|"CANNOT BE REVERSED!"| PWD
 ```
-$2b$12$e8uq.s6jM9iC8wN2dF8H0u1p8k7y6x5w4v3u2t1s0r9q8p7o6n5m4
-\__/\_/\____________________/\____________________________/
- |   |          |                          |
- |   |          |                          +--> Hash Checksum (31 chars)
- |   |          +-----------------------------> Random Salt (22 chars)
- |   +----------------------------------------> Cost Factor: 2^12 = 4,096 iterations
- +--------------------------------------------> Algorithm Identifier (Bcrypt 2b)
+
+#### Installing Bcrypt & Types:
+```bash
+npm install bcryptjs jsonwebtoken
+npm install -D @types/bcryptjs @types/jsonwebtoken
+```
+
+#### Hashing and Comparing Passwords in Code:
+```ts
+import bcrypt from "bcryptjs";
+
+// 1. When user registers: Hash the password (cost factor = 10 rounds):
+const plainPassword = "superSecretPassword123";
+const passwordHash = await bcrypt.hash(plainPassword, 10);
+console.log("Stored in Database:", passwordHash);
+// Output looks like: $2b$10$wKq...
+
+// 2. When user logs in: Compare candidate password against stored hash:
+const isMatch = await bcrypt.compare("superSecretPassword123", passwordHash);
+console.log("Password correct?", isMatch); // true
+
+const isWrong = await bcrypt.compare("wrongGuess", passwordHash);
+console.log("Password correct?", isWrong); // false
 ```
 
 ---
 
-## Module 2: Stateful Sessions vs. Stateless JWTs
+## Module 2: How Tokens Work (JSON Web Tokens - JWT)
 
-### 1. Architectural Comparison Matrix
+### 1. The Concert Wristband Analogy
 
-| Feature | Stateful Session Auth (Recommended for Web Apps) | Stateless JWT Auth (API / Microservices) |
-| :--- | :--- | :--- |
-| **Storage Location** | Server database / Redis table + `session_id` in Cookie. | Cryptographically signed token string in Client memory/header. |
-| **Revocation / Logout** | **Instant & Guaranteed:** Deleting the session row immediately revokes access across all devices. | **Difficult:** Token remains valid until expiration unless maintaining a distributed blacklist. |
-| **Database Overhead** | 1 fast session lookup per incoming request (or Redis $O(1)$). | 0 database lookups (CPU verifies cryptographic signature). |
-| **Security Surface** | Immune to XSS if stored in `HttpOnly` cookies. | Vulnerable to XSS if stored in `localStorage`. |
-
----
-
-### 2. Under the Hood: Session Authentication Lifecycle
+> [!NOTE]
+> **The Mental Model:** When you buy a ticket at an event venue, the cashier checks your ID once and clips a **stamped, tamper-proof wristband** onto your arm.
+> For the rest of the night, whenever you visit the bar, food stands, or stage, the security guard doesn't call the bank or check your passport again — they just look at your stamped wristband!
+> A **JWT (JSON Web Token)** is an electronic, cryptographically signed wristband for the web.
 
 ```mermaid
 sequenceDiagram
-    autonumber
     actor User
-    participant Browser
-    participant API as Express API Server
-    participant DB as PostgreSQL Database
+    participant Server as Express Server
+    participant DB as PostgreSQL
 
-    User->>Browser: Enters email & password, clicks Login
-    Browser->>API: POST /api/v1/auth/login { email, password }
-    API->>DB: SELECT * FROM users WHERE email = $1
-    DB-->>API: User record with password_hash
-    API->>API: bcrypt.compare(password, password_hash)
-    
-    alt Password Valid
-        API->>DB: INSERT INTO sessions (user_id, expires_at) VALUES (...)
-        DB-->>API: Created session { id: 'sess_9f8e7d...', expires_at }
-        API-->>Browser: Set-Cookie: session_id=sess_9f8e7d; HttpOnly; Secure; SameSite=Lax
-        Browser-->>User: Redirect to Flowboard Dashboard
-    else Invalid Credentials
-        API-->>Browser: 401 Unauthorized: "Invalid email or password"
-    end
+    User->>Server: POST /api/auth/login { email, password }
+    Server->>DB: Check email & compare hash
+    Server-->>User: Returns JWT Wristband string! (Bearer eyJhbGci...)
 
-    Note over Browser,API: Subsequent Protected Request
-    Browser->>API: GET /api/v1/boards (Cookie sent automatically by browser!)
-    API->>DB: SELECT * FROM sessions WHERE id = $1 AND expires_at > NOW()
-    DB-->>API: Session valid -> userId: 'u-101'
-    API->>DB: SELECT * FROM boards WHERE user_id = 'u-101'
-    DB-->>API: User's owned boards
-    API-->>Browser: 200 OK with board data
+    Note over User,Server: Subsequent Protected Request
+    User->>Server: GET /api/boards (Header: Authorization: Bearer eyJhbGci...)
+    Note over Server: Server verifies signature with secret key
+    Server-->>User: 200 OK with User's boards!
 ```
 
 ---
 
-### 3. Cookie Security Attributes Deconstructed
+### 2. Anatomy of a JWT
 
-When issuing authentication cookies from Express, three flags are mandatory:
+A JWT looks like a long string of letters separated by two dots:
+`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c`
 
-1. **`httpOnly: true`:** Prevents client-side JavaScript (`document.cookie`) from accessing the cookie. **Blocks session-stealing via XSS attacks.**
-2. **`secure: true`:** Instructs the browser to transmit the cookie exclusively over encrypted **HTTPS** connections (set to `true` in production).
-3. **`sameSite: 'lax'`:** Prevents the browser from sending the cookie on cross-site requests (e.g., malicious links from external sites), mitigating **Cross-Site Request Forgery (CSRF)**.
+1. **Header (Red):** Specifies algorithm (e.g., `HS256`).
+2. **Payload (Purple):** The data stored inside (e.g., `{ userId: "123", email: "user@lagos.com" }`).
+3. **Signature (Blue):** A mathematical seal signed with your secret server key (`JWT_SECRET`). If an attacker changes a single letter in the payload, the signature breaks immediately!
 
 ---
 
-## Module 3: Implementing Secure Auth in Flowboard
+## Module 3: Building User Registration & Login in Flowboard
 
-### 1. Database Schema Additions (`src/db/schema.ts`)
+### 1. The Users Database Table (`src/db/schema.ts`)
 
 ```ts
-import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
-export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const sessions = pgTable('sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id')
+// Update boards table to reference users:
+export const boards = pgTable("boards", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    .references(() => users.id, { onDelete: "cascade" }), // Delete user's boards if user is deleted
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 ```
+Run `npx drizzle-kit push` to apply the updated schema to Neon!
 
 ---
 
-### 2. Authentication Service (`src/services/auth.service.ts`)
+### 2. Register & Login Endpoints
 
 ```ts
-import bcrypt from 'bcryptjs';
-import { db } from '../db';
-import { users, sessions } from '../db/schema';
-import { eq, and, gt } from 'drizzle-orm';
+// src/routes/auth.routes.ts
+import { Router, Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
+import { users } from "../db/schema";
 
-const SALT_ROUNDS = 12; // 2^12 iterations (~150ms hashing time)
-const SESSION_DURATION_DAYS = 7;
+export const authRouter = Router();
+const JWT_SECRET = process.env.JWT_SECRET || "super-secret-lagos-key";
 
-export const AuthService = {
-  signup: async (email: string, passwordPlain: string) => {
-    // 1. Check if email already registered
-    const existing = await db.query.users.findFirst({
-      where: (u, { eq }) => eq(u.email, email.toLowerCase().trim()),
-    });
+// 1. POST /api/auth/register
+authRouter.post("/register", async (req: Request, res: Response) => {
+  const { email, password } = req.body;
 
+  if (!email || !password || password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  }
+
+  try {
+    // Check if email already registered:
+    const [existing] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
     if (existing) {
-      const error: any = new Error('An account with this email address already exists.');
-      error.statusCode = 409; // Conflict
-      throw error;
+      return res.status(409).json({ error: "Email is already registered." });
     }
 
-    // 2. Hash password with bcrypt salt
-    const passwordHash = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
+    // Hash password with 10 salt rounds:
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // 3. Persist new user record
+    // Save user to database:
     const [newUser] = await db
       .insert(users)
-      .values({
-        email: email.toLowerCase().trim(),
-        passwordHash,
-      })
-      .returning({ id: users.id, email: users.email, createdAt: users.createdAt });
+      .values({ email: email.toLowerCase(), passwordHash })
+      .returning({ id: users.id, email: users.email });
 
-    return newUser;
-  },
-
-  login: async (email: string, passwordPlain: string) => {
-    // 1. Fetch user by email
-    const user = await db.query.users.findFirst({
-      where: (u, { eq }) => eq(u.email, email.toLowerCase().trim()),
-    });
-
-    // 2. Timing-safe constant-time failure comparison
-    if (!user) {
-      // Intentionally vague error prevents account enumeration
-      const error: any = new Error('Invalid email or password.');
-      error.statusCode = 401;
-      throw error;
-    }
-
-    const isMatch = await bcrypt.compare(passwordPlain, user.passwordHash);
-    if (!isMatch) {
-      const error: any = new Error('Invalid email or password.');
-      error.statusCode = 401;
-      throw error;
-    }
-
-    // 3. Create persistent database session
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS);
-
-    const [session] = await db
-      .insert(sessions)
-      .values({
-        userId: user.id,
-        expiresAt,
-      })
-      .returning();
-
-    return {
-      session,
-      user: { id: user.id, email: user.email },
-    };
-  },
-
-  logout: async (sessionId: string) => {
-    if (!sessionId) return;
-    await db.delete(sessions).where(eq(sessions.id, sessionId));
-  },
-};
-```
-
----
-
-### 3. Authentication & Ownership Authorization Middleware
-
-```ts
-// src/middlewares/auth.middleware.ts
-import { Request, Response, NextFunction } from 'express';
-import { db } from '../db';
-import { sessions, users } from '../db/schema';
-import { eq, and, gt } from 'drizzle-orm';
-
-// Extend Express Request interface with authenticated user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-      };
-    }
+    res.status(201).json({ message: "Registration successful!", user: newUser });
+  } catch (error) {
+    res.status(500).json({ error: "Registration failed." });
   }
-}
-
-export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
-  const sessionId = req.cookies?.session_id;
-
-  if (!sessionId) {
-    return res.status(401).json({ status: 'fail', message: 'Authentication required. Please log in.' });
-  }
-
-  // Look up session in database and ensure not expired
-  const activeSession = await db.query.sessions.findFirst({
-    where: and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())),
-    with: {
-      user: true,
-    },
-  });
-
-  if (!activeSession || !activeSession.user) {
-    res.clearCookie('session_id');
-    return res.status(401).json({ status: 'fail', message: 'Session has expired or is invalid.' });
-  }
-
-  // Attach authenticated user identity to request object
-  req.user = {
-    id: activeSession.user.id,
-    email: activeSession.user.email,
-  };
-
-  next();
-};
-```
-
----
-
-### 4. Preventing IDOR Vulnerabilities in Controllers
-
-```ts
-// src/controllers/board.controller.ts
-export const BoardController = {
-  getBoard: async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const currentUserId = req.user!.id;
-
-      const board = await BoardService.getBoardById(id);
-
-      // 🛡️ IDOR Check: Ensure board belongs to requesting user
-      if (board.userId !== currentUserId) {
-        return res.status(403).json({
-          status: 'fail',
-          message: 'Forbidden: You do not have permission to view or modify this board.',
-        });
-      }
-
-      res.status(200).json({ status: 'success', data: { board } });
-    } catch (err) {
-      next(err);
-    }
-  },
-};
-```
-
----
-
-## Module 4: API Security Hardening (OWASP Compliance)
-
-```bash
-npm install helmet express-rate-limit cookie-parser
-```
-
-```ts
-// src/index.ts
-import express from 'express';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
-
-const app = express();
-
-// 1. Set Security HTTP Headers
-app.use(helmet());
-
-// 2. Cookie Parser
-app.use(cookieParser());
-
-// 3. CORS Configuration
-app.use(
-  cors({
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-    credentials: true, // Allows cookies across origins
-  })
-);
-
-// 4. Rate Limiting: Prevent Brute Force Attacks on Auth Endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,                   // Limit each IP to 10 signup/login attempts per window
-  message: { status: 'fail', message: 'Too many login attempts. Please try again in 15 minutes.' },
 });
 
-app.use('/api/v1/auth', authLimiter);
+// 2. POST /api/auth/login
+authRouter.post("/login", async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  try {
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Verify password:
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Sign a JWT valid for 24 hours:
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.json({ message: "Login successful!", token });
+  } catch (error) {
+    res.status(500).json({ error: "Login failed." });
+  }
+});
 ```
 
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 4: The Bouncer Middleware (`authenticateToken`)
 
-| Pitfall | Security Risk | Fix |
+We need a middleware function that acts like a nightclub bouncer:
+- Checks the `Authorization: Bearer <token>` header.
+- If missing or invalid $\to$ halts request and returns `401 Unauthorized`.
+- If valid $\to$ decodes user information, attaches `req.user`, and calls `next()`!
+
+```ts
+// src/middleware/auth.middleware.ts
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "super-secret-lagos-key";
+
+// Extend Express Request type to include user:
+export interface AuthRequest extends Request {
+  user?: { userId: string; email: string };
+}
+
+export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1]; // Format: "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).json({ error: "Access denied. No token provided." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    req.user = decoded; // Attach authenticated user to request object!
+    next(); // Pass to next handler
+  } catch (err) {
+    return res.status(403).json({ error: "Invalid or expired token." });
+  }
+}
+```
+
+---
+
+## Module 5: Authorization & Preventing IDOR
+
+> [!CAUTION]
+> **What is IDOR (Insecure Direct Object Reference)?**
+> If user Alice requests `GET /api/boards/123`, and your server just does:
+> ```ts
+> db.select().from(boards).where(eq(boards.id, req.params.id));
+> ```
+> An attacker can simply type `GET /api/boards/124`, `125`, `126` and view everyone's private boards!
+> 
+> **The Golden Rule:** Always filter queries by **BOTH** the item ID and the authenticated user's ID:
+
+```ts
+// src/routes/board.routes.ts
+import { Router, Response } from "express";
+import { and, eq } from "drizzle-orm";
+import { authenticateToken, AuthRequest } from "../middleware/auth.middleware";
+import { db } from "../db";
+import { boards } from "../db/schema";
+
+export const boardRouter = Router();
+
+// Apply auth middleware to ALL routes in this router:
+boardRouter.use(authenticateToken);
+
+// 1. GET /api/boards - Returns ONLY boards belonging to the logged-in user:
+boardRouter.get("/", async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const userBoards = await db.select().from(boards).where(eq(boards.userId, userId));
+  res.json(userBoards);
+});
+
+// 2. POST /api/boards - Automatically attaches the logged-in user's ID:
+boardRouter.post("/", async (req: AuthRequest, res: Response) => {
+  const { title, description } = req.body;
+  const userId = req.user!.userId;
+
+  const [createdBoard] = await db
+    .insert(boards)
+    .values({
+      userId,
+      title,
+      description: description || "",
+    })
+    .returning();
+
+  res.status(201).json(createdBoard);
+});
+
+// 3. DELETE /api/boards/:id - Prevents deleting another user's board!
+boardRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
+  const boardId = req.params.id;
+  const userId = req.user!.userId;
+
+  // Enforce ownership: Must match both boardId AND userId!
+  const deleted = await db
+    .delete(boards)
+    .where(and(eq(boards.id, boardId), eq(boards.userId, userId)))
+    .returning();
+
+  if (deleted.length === 0) {
+    return res.status(404).json({ error: "Board not found or you lack permission to delete it." });
+  }
+
+  res.json({ message: "Board deleted successfully." });
+});
+```
+
+---
+
+## Module 6: Rookie Traps & Debugging Guide
+
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Account enumeration in error messages** | "Email not found" reveals which emails are registered on the platform. | Return a uniform message: "Invalid email or password". |
-| **Missing `HttpOnly` on session cookie** | Cross-Site Scripting (XSS) can read `document.cookie` and steal active sessions. | Always set `{ httpOnly: true, secure: true, sameSite: 'lax' }`. |
-| **IDOR (Missing user ownership verification)** | User A can view or delete User B's boards simply by guessing UUID in URL. | Verify `board.userId === req.user.id` or scope queries by `userId`. |
+| `jwt must be provided` | Missing token in request header. | In Thunder Client/Postman, go to **Auth** $\to$ choose **Bearer Token** and paste your JWT. |
+| `jwt malformed` | Passed an invalid string or forgot `"Bearer "` prefix. | Ensure format is `Authorization: Bearer eyJhbGci...`. |
+| Passwords matching fails on login | You re-hashed the incoming password instead of using `bcrypt.compare`. | Always use `await bcrypt.compare(submittedPassword, storedHash)`. |
+| Storing JWT in plain `localStorage` in production | Vulnerable to XSS token theft. | For sensitive financial apps, use `HttpOnly` cookies. For standard SPA APIs, store securely in memory or auth context. |
 
 ---
 
-### Week 17: Comprehensive Assignment
+## 🎯 Week 17 Hands-on Classroom Exercises
 
-**Objective:** Secure the Flowboard API with password hashing, stateful session authentication via HttpOnly cookies, route protection middleware, IDOR defenses, and rate limiting.
+### Level 1: Registration & Hashing
+1. Implement the `POST /api/auth/register` endpoint.
+2. In Thunder Client, register a new user: `{ "email": "student@lagosdataschool.com", "password": "password123" }`.
+3. Open your Neon database console and inspect the `users` table: verify that the password is a cryptographically hashed string!
 
-**Requirements:**
-1. **Password Hashing:**
-   - User passwords hashed with `bcryptjs` using 12 salt rounds before database persistence.
-2. **Session Authentication:**
-   - `POST /api/v1/auth/signup` and `POST /api/v1/auth/login` issuing secure `session_id` cookies.
-   - `POST /api/v1/auth/logout` revoking session in database and clearing cookie.
-3. **Route Protection & IDOR Prevention:**
-   - `requireAuth` middleware protecting all `/api/v1/boards` routes.
-   - Board CRUD operations strictly authorized by verifying `userId` matches `req.user.id`.
-4. **Security Hardening:**
-   - Helmet security headers and `express-rate-limit` configured on authentication routes.
-5. **Git Workflow:**
-   - Developed on branch `feature/auth-security`, merged via Pull Request, and pulled locally.
+### Level 2: Login & Generating JWTs
+1. Implement `POST /api/auth/login`.
+2. Login with the correct password and receive your JWT token.
+3. Test logging in with the wrong password and confirm you receive `401 Unauthorized`.
+
+### Level 3: Securing Flowboard with Bouncer Middleware
+1. Protect all board routes with `authenticateToken`.
+2. Register User A and User B.
+3. Have User A create a board.
+4. Try fetching all boards with User B's token: verify that User B **cannot see** User A's board!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [OWASP Top 10 Web Application Security Risks](https://owasp.org/www-project-top-ten/) — The authoritative security awareness standard for web developers.
-- [MDN Web Docs: Using HTTP Cookies & Security Flags](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies) — Explains `HttpOnly`, `Secure`, and `SameSite` flags.
-- [RFC 7519: JSON Web Token (JWT) Specification](https://datatracker.ietf.org/doc/html/rfc7519) — Standard specification for compact, URL-safe cryptographic claims.
-- [Bcrypt Key Derivation Algorithm (USENIX)](https://www.usenix.org/legacy/events/usenix99/provos/provos_html/) — Niels Provos and David Mazières' original academic paper on the Blowfish password hashing algorithm.
-
-### Recommended Textbooks & Canonical Books
-- **Web Application Security: Exploitation and Countermeasures for Modern Web Applications** by Andrew Hoffman (O'Reilly) — *Chapters 1–6: Cross-Site Scripting (XSS), Cross-Site Request Forgery (CSRF), and Insecure Direct Object References (IDOR).*
-- **OAuth 2 in Action** by Justin Richer and Antonio Sanso (Manning) — *Comprehensive guide to token-based authorization and resource servers.*
-- **The Web Application Hacker's Handbook (2nd Edition)** by Dafydd Stuttard and Marcus Pinto (Wiley) — *The classic textbook on web authentication bypasses, session flaws, and access control.*
-
-### Security Cheat Sheets & Verification Tools
-- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) — Gold-standard rules for password storage, salt rounds, and rate limiting.
-- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) — Stateful session issuance, expiration, and cookie transport security.
+* [The Valley of Code: Authentication](https://thevalleyofcode.com/auth/) — Flavio Copes' beginner guide to web authentication.
+* [JWT.io: Introduction to JSON Web Tokens](https://jwt.io/introduction) — Visual debugger and interactive specification for JWTs.
+* [OWASP Top 10 Security Risks](https://owasp.org/www-project-top-ten/) — The industry authority on securing web applications against injection and broken access controls.

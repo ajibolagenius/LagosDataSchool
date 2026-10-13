@@ -1,12 +1,52 @@
 # Week 3: CSS Fundamentals
 
-Lagos Spots now has a solid, semantic HTML foundation, but it displays only with the browser's rudimentary default styles (the **User-Agent stylesheet**). This week, you take complete control over presentation: typography, colors, spacing, the CSS Box Model, the Cascade, and the **BEM (Block Element Modifier)** methodology. Layout systems (Flexbox and Grid) are introduced in Week 4 — this week focuses on mastering individual element geometry, styling rules, and specificity mechanics.
+Welcome to Week 3! In Week 2, you built the semantic HTML structure of **Lagos Spots**. Your website has headings, paragraphs, lists, and forms, but right now it looks like an unstyled black-and-white 1990s document.
+
+This week, you learn **CSS (Cascading Style Sheets)**: the language of design, beauty, and visual hierarchy. You will take complete control over typography, colors, borders, spacing with the **CSS Box Model**, and learn how browsers decide which styles to apply.
+
+---
+
+## Pedagogical Roadmap
+
+```mermaid
+flowchart TD
+    M1["<b>Module 1: The CSS Mental Model & Selectors</b><br/>• The Paint & Wardrobe Analogy<br/>• CSS Syntax: selector { property: value; }<br/>• Element, Class, and ID selectors"]
+    --> M2["<b>Module 2: The Cascade & Specificity</b><br/>• Why is it called Cascading?<br/>• Specificity hierarchy (Who wins in a conflict?)<br/>• Inheritance (Text styles vs Box geometry)"]
+    --> M3["<b>Module 3: The CSS Box Model</b><br/>• The Gift Box Analogy (Content, Padding, Border, Margin)<br/>• The box-sizing: border-box lifesaver<br/>• Display: block vs inline vs inline-block"]
+    --> M4["<b>Module 4: Colors, Typography & Styling Lagos Spots</b><br/>• Color formats: Hex, RGB, HSL<br/>• System fonts vs Google Fonts<br/>• Styling the Lagos Spots cards"]
+```
 
 ---
 
 ## Module 1: The CSS Cascade, Specificity & Selectors
 
-### 1. The Core Terminology of CSS
+### 1. The Paint & Wardrobe Analogy
+
+> [!NOTE]
+> **The Mental Model:**
+> If HTML is the bare concrete skeleton of a building, **CSS is the interior design, paint, lighting, and furniture**.
+> A CSS rule simply points at an HTML element and says: *"Paint this orange, make the text 18 pixels large, and add 16 pixels of breathing room inside."*
+
+---
+
+### 2. Basic CSS Syntax
+
+Every CSS rule has two parts:
+1. A **Selector** (points to the HTML tag you want to style).
+2. A **Declaration Block** (wrapped in `{}` curly braces with `property: value;` pairs).
+
+```css
+/* Selector { Property: Value; } */
+h1 {
+  color: #ea580c;        /* Orange color */
+  font-size: 2rem;       /* Large font */
+  text-align: center;    /* Centered on page */
+}
+```
+
+---
+
+### 3. The Core Terminology of CSS
 
 | Term | What It Actually Means | Technical Context |
 | :--- | :--- | :--- |

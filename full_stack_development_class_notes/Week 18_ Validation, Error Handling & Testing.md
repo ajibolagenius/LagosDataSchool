@@ -1,454 +1,302 @@
 # Week 18: Validation, Error Handling & Testing
 
-In Week 17, you implemented authentication and security rules. However, the API still accepts arbitrary payload shapes, and error responses remain scattered and inconsistent across controllers. This week, you harden Flowboard into a resilient, production-ready system: implementing **Schema-First Input Validation with Zod**, an **Enterprise Centralized Error-Handling Pipeline**, and an automated **Integration Test Suite using Vitest & Supertest**.
+Welcome to Week 18! In Weeks 15, 16, and 17, you built the core backend of **Flowboard**: handling routing, writing database queries in PostgreSQL with Drizzle, and securing endpoints with Bcrypt and JWT authentication.
+
+However, your API currently has three critical vulnerabilities:
+1. **Dirty Data:** What if a user submits an empty title, a 5,000-character string, or an invalid email?
+2. **Ugly Crashes:** What if an unexpected error occurs? Does your server send a clean JSON error response, or does it crash and expose secret database stack traces to the public?
+3. **Manual Verification:** Are you still testing 15 endpoints manually by hand in Thunder Client every single time you change a line of code?
+
+This week, you master **Schema-First Input Validation with Zod**, **Centralized Error Handling in Express**, and **Automated Backend Testing with Vitest & Supertest**.
 
 ---
 
-## Module 1: Schema-First Validation with Zod
-
-### 1. The Core Terminology of Input Validation
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Fail-Fast Principle** | Halting execution and rejecting invalid requests immediately at the application edge (in middleware) before touching services or database queries. | Protects database connections and prevents corrupted data state. |
-| **Schema Parsing** | Validating that raw, untyped runtime inputs match an exact shape and type constraint, stripping malicious extraneous properties. | Zod provides both runtime validation and TypeScript compile-time type inference. |
-| **`safeParse()`** | A non-throwing validation method that returns a discriminated union: `{ success: true, data }` or `{ success: false, error: ZodError }`. | Essential for graceful validation error responses without relying on expensive `try/catch` performance hits. |
-| **Operational Error** | An expected, known failure scenario during runtime (e.g., invalid email format, expired session, resource not found). | Handled gracefully with predictable HTTP 4xx status codes. |
-| **Programmer Error** | A bug or unhandled exception in the code (e.g., calling a method on `undefined`, syntax error). | Caught by global error middleware, logged to monitoring, and returned as HTTP 500. |
-
----
-
-### 2. Under the Hood: The Zod Parsing & Sanitization Pipeline
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    RawJSON["Incoming Request Body<br/>{ title: '  Q3 Roadmap  ', hackerField: true }"] -->|"1. Middleware Interception"| SafeParse["<b>Zod safeParse()</b><br/>• Trims whitespace<br/>• Enforces min/max lengths<br/>• Strips unknown keys"]
-    
-    SafeParse --> Branch{"Is input valid?"}
-    Branch -->|"No (Validation Failed)"| Return400["<b>HTTP 400 Bad Request</b><br/>{ status: 'fail', errors: { title: 'Required' } }"]
-    Branch -->|"Yes (Validation Succeeded)"| CleanDTO["<b>Sanitized, Typed DTO</b><br/>req.body = { title: 'Q3 Roadmap' }<br/>(hackerField removed!)"]
-    CleanDTO --> Controller["Controller & Service Execution"]
+    M1["<b>Module 1: Input Validation with Zod</b><br/>• The Bouncer with a Clipboard mental model<br/>• Defining schemas: z.string().email().min(6)<br/>• safeParse vs parse"]
+    --> M2["<b>Module 2: The Validation Middleware</b><br/>• Inspecting req.body before the controller runs<br/>• Returning clean 400 Bad Request error maps<br/>• Fail-Fast principle (Protecting the database)"]
+    --> M3["<b>Module 3: Centralized Error Handling in Express</b><br/>• Why try/catch in every route gets messy<br/>• The 4-argument error middleware (err, req, res, next)<br/>• Operational errors vs Programmer bugs"]
+    --> M4["<b>Module 4: Automated Testing with Vitest & Supertest</b><br/>• Testing APIs without opening Postman<br/>• Simulating HTTP requests (POST /api/auth/register)<br/>• Verifying status codes, JSON responses & auth tokens"]
 ```
 
 ---
 
-### 3. Declaring Strict Zod Schemas
+## Module 1: Input Validation with Zod
 
+### 1. The Bouncer with a Clipboard Mental Model
+
+> [!NOTE]
+> **The Mental Model:**
+> If you don't validate user input, your backend is like a nightclub with an open door: anyone can walk in carrying mud, garbage, or weapons.
+> **Zod is a Bouncer with a strict Clipboard:**
+> - The bouncer checks every incoming visitor (the request body).
+> - *"Is your name at least 3 letters? Is your email in proper format? Is your password at least 8 characters with a number?"*
+> - If anything fails, the bouncer immediately turns the user away at the front door with a clear explanation (**`400 Bad Request`**), **before they ever touch your database!**
+
+```mermaid
+flowchart LR
+    RAW["Raw User Input<br/>{ email: 'bad-email', password: '123' }"] 
+    --> ZOD["<b>Zod Schema Inspector</b><br/>z.string().email()<br/>z.string().min(8)"]
+    ZOD -->|Fails Validation| ERR["<b>400 Bad Request</b><br/>{ errors: { email: 'Invalid email' } }"]
+    ZOD -->|Passes| CLEAN["Clean, Validated DTO &rarr; Database Query"]
+```
+
+---
+
+### 2. Installing Zod & Defining Schemas
+
+Install Zod in your backend project:
+```bash
+npm install zod
+```
+
+Create `src/schemas/board.schema.ts`:
 ```ts
 // src/schemas/board.schema.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 export const createBoardSchema = z.object({
   title: z
-    .string({ required_error: 'Board title is required.' })
+    .string({ required_error: "Board title is required" })
     .trim()
-    .min(3, 'Board title must be at least 3 characters long.')
-    .max(100, 'Board title cannot exceed 100 characters.'),
+    .min(3, "Board title must be at least 3 characters")
+    .max(100, "Board title cannot exceed 100 characters"),
   description: z
     .string()
     .trim()
-    .max(500, 'Description cannot exceed 500 characters.')
+    .max(500, "Description cannot exceed 500 characters")
     .optional()
-    .default(''),
+    .default(""),
 });
 
-export const updateBoardSchema = createBoardSchema.partial();
-
-export const boardIdParamSchema = z.object({
-  id: z.string().uuid('Invalid Board ID format. Must be a valid UUID.'),
-});
-
-// Infer TypeScript types directly from Zod schemas
+// Infer the TypeScript type directly from the Zod schema!
 export type CreateBoardInput = z.infer<typeof createBoardSchema>;
-export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;
 ```
 
+Create `src/schemas/auth.schema.ts`:
 ```ts
 // src/schemas/auth.schema.ts
-import { z } from 'zod';
+import { z } from "zod";
 
-export const signupSchema = z.object({
+export const registerSchema = z.object({
   email: z
-    .string({ required_error: 'Email is required.' })
+    .string({ required_error: "Email is required" })
     .trim()
     .toLowerCase()
-    .email('Invalid email address format.'),
+    .email("Please provide a valid email address"),
   password: z
-    .string({ required_error: 'Password is required.' })
-    .min(8, 'Password must be at least 8 characters long.')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain at least one number.'),
-});
-
-export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email('Invalid email format.'),
-  password: z.string().min(1, 'Password is required.'),
+    .string({ required_error: "Password is required" })
+    .min(8, "Password must be at least 8 characters long"),
 });
 ```
 
 ---
 
-### 4. Generic Validation Middleware
+## Module 2: The Validation Middleware
+
+Instead of writing manual `if (!title) ...` checks inside every route handler, we write a **reusable validation middleware**:
 
 ```ts
-// src/middlewares/validate.middleware.ts
-import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+// src/middleware/validate.middleware.ts
+import { Request, Response, NextFunction } from "express";
+import { ZodSchema, ZodError } from "zod";
 
-interface RequestValidationSchema {
-  body?: AnyZodObject;
-  query?: AnyZodObject;
-  params?: AnyZodObject;
-}
+export function validateBody(schema: ZodSchema) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // safeParse does NOT throw an error; it returns a clean result object:
+    const result = schema.safeParse(req.body);
 
-export const validateRequest = (schemas: RequestValidationSchema) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (schemas.params) {
-        req.params = await schemas.params.parseAsync(req.params);
-      }
-      if (schemas.query) {
-        req.query = await schemas.query.parseAsync(req.query);
-      }
-      if (schemas.body) {
-        req.body = await schemas.body.parseAsync(req.body);
-      }
-      next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        // Flatten Zod error issues into a clean field-to-message map
-        const fieldErrors = error.errors.reduce<Record<string, string>>((acc, err) => {
-          const field = err.path.join('.') || 'general';
-          acc[field] = err.message;
-          return acc;
-        }, {});
+    if (!result.success) {
+      // Flatten errors into an easy-to-read object:
+      const formattedErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path.join(".") || "general";
+        formattedErrors[field] = err.message;
+      });
 
-        return res.status(400).json({
-          status: 'fail',
-          message: 'Validation failed. Please review the submitted fields.',
-          errors: fieldErrors,
-        });
-      }
-      next(error);
-    }
-  };
-};
-```
-
----
-
-## Module 2: Centralized Error Handling Architecture
-
-### 1. Custom Error Hierarchy
-
-Instead of scattering generic `throw new Error()` throughout your codebase, create a strongly-typed **Error Class Hierarchy**:
-
-```mermaid
-classDiagram
-    class Error {
-        +string message
-        +string stack
-    }
-    class AppError {
-        +number statusCode
-        +string status
-        +boolean isOperational
-    }
-    class NotFoundError {
-        +statusCode: 404
-    }
-    class UnauthorizedError {
-        +statusCode: 401
-    }
-    class ForbiddenError {
-        +statusCode: 403
-    }
-    class ConflictError {
-        +statusCode: 409
-    }
-
-    Error <|-- AppError
-    AppError <|-- NotFoundError
-    AppError <|-- UnauthorizedError
-    AppError <|-- ForbiddenError
-    AppError <|-- ConflictError
-```
-
-```ts
-// src/errors/AppError.ts
-export class AppError extends Error {
-  public readonly statusCode: number;
-  public readonly status: 'fail' | 'error';
-  public readonly isOperational: boolean;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    this.isOperational = true; // Distinguishes expected errors from uncaught crashes
-
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message = 'Requested resource not found.') {
-    super(message, 404);
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required.') {
-    super(message, 401);
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = 'Forbidden: Insufficient permissions.') {
-    super(message, 403);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message = 'Resource conflict.') {
-    super(message, 409);
-  }
-}
-```
-
----
-
-### 2. Global Express Error Handler Middleware
-
-```ts
-// src/middlewares/error.middleware.ts
-import { Request, Response, NextFunction } from 'express';
-import { AppError } from '../errors/AppError';
-
-export const globalErrorHandler = (
-  err: any,
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-) => {
-  let error = err;
-
-  // 1. Handle PostgreSQL Unique Constraint Violation (Error Code 23505)
-  if (err.code === '23505') {
-    error = new AppError('A record with that value already exists.', 409);
-  }
-
-  // 2. Handle PostgreSQL Foreign Key Violation (Error Code 23503)
-  if (err.code === '23503') {
-    error = new AppError('Referenced parent record does not exist.', 400);
-  }
-
-  const statusCode = error.statusCode || 500;
-  const status = error.status || 'error';
-  const isProd = process.env.NODE_ENV === 'production';
-
-  // Production Error Response (Hides sensitive stack traces from attackers)
-  if (isProd) {
-    if (error.isOperational) {
-      return res.status(statusCode).json({
-        status,
-        message: error.message,
+      return res.status(400).json({
+        error: "Validation failed",
+        details: formattedErrors,
       });
     }
 
-    // Unhandled Programmer Error: Do not leak internal details!
-    console.error('🔥 CRITICAL UNHANDLED ERROR:', err);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Something went wrong on our servers. Please try again later.',
-    });
-  }
+    // Replace req.body with the sanitized, trimmed data:
+    req.body = result.data;
+    next(); // Pass to controller!
+  };
+}
+```
 
-  // Development Error Response (Includes full debugging stack trace)
-  return res.status(statusCode).json({
-    status,
-    message: error.message,
-    stack: error.stack,
-    error: err,
-  });
-};
+### Using the Middleware on Your Routes:
+```ts
+import { validateBody } from "../middleware/validate.middleware";
+import { createBoardSchema } from "../schemas/board.schema";
+
+// The validation runs BEFORE the route handler executes!
+boardRouter.post("/", validateBody(createBoardSchema), async (req, res) => {
+  // If we reach this line, req.body is 100% GUARANTEED to be valid!
+  const { title, description } = req.body;
+  // ... database insert ...
+});
 ```
 
 ---
 
-## Module 3: Integration Testing with Vitest & Supertest
+## Module 3: Centralized Error Handling in Express
 
-### 1. Why Supertest Beats Manual Postman Testing
+### 1. Why Centralized Error Handling?
 
-**Supertest** binds to your Express `app` object in-memory without needing a live, running HTTP server on a port. It dispatches simulated HTTP requests and verifies status codes, JSON response structures, and database state in continuous integration (CI) pipelines:
+In amateur code, developers wrap every single database query in repetitive `try/catch` blocks. If someone forgets one `try/catch` and an error happens, the server hangs or crashes!
+
+In production Express applications:
+1. When an error occurs, you simply pass it to **`next(error)`**.
+2. Express catches all errors in one centralized **Global Error Handler**.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Test as Vitest Runner
-    participant Super as Supertest Agent
-    participant App as Express App (In-Memory)
-    participant TestDB as Isolated Test Database
-
-    Test->>Super: POST /api/v1/auth/signup { email, password }
-    Super->>App: Executes middleware pipeline in-process
-    App->>TestDB: Inserts user record
-    App-->>Super: 201 Created + Set-Cookie Header
-    Super-->>Test: Assertion: expect(res.status).toBe(201)
+flowchart TD
+    ROUTE["Any Route / Controller"] -->|"Catches error & calls next(err)"| GLOBAL["<b>Global Error Middleware</b><br/>(err, req, res, next)"]
+    GLOBAL --> LOG["Logs error to terminal console"]
+    GLOBAL --> RESPONSE["Sends structured JSON response:<br/>res.status(500).json({ error: 'Server Error' })"]
 ```
 
 ---
 
-### 2. Setting Up the Test Suite
+### 2. The 4-Argument Error Middleware
+
+> [!IMPORTANT]
+> Express identifies an error-handling middleware by its **4 parameters**:
+> `(err, req, res, next)`
+> It **must** be placed at the very bottom of `src/index.ts`, **after all your routes**!
+
+```ts
+// src/middleware/error.middleware.ts
+import { Request, Response, NextFunction } from "express";
+
+export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
+  console.error("🔥 Server Error Caught:", err);
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || "An unexpected internal server error occurred.";
+
+  res.status(statusCode).json({
+    error: message,
+    // Only include technical stack trace in local development:
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+  });
+}
+```
+
+In `src/index.ts`:
+```ts
+// Mount routes first:
+app.use("/api/auth", authRouter);
+app.use("/api/boards", boardRouter);
+
+// ⚠️ Global error handler MUST BE LAST:
+app.use(errorHandler);
+```
+
+---
+
+## Module 4: Automated Testing with Vitest & Supertest
+
+### 1. What is Supertest?
+
+**Supertest** allows you to test your Express API by simulating real HTTP requests (`GET`, `POST`, `DELETE`) in memory without even having to manually start your server on port 5000!
 
 ```bash
 npm install -D vitest supertest @types/supertest
 ```
 
-```ts
-// vite.config.ts / vitest.config.ts
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    testTimeout: 10000,
-  },
-});
+Add test script to `package.json`:
+```json
+"scripts": {
+  "test": "vitest"
+}
 ```
 
 ---
 
-### 3. Writing End-to-End API Integration Tests
+### 2. Writing Your First API Test (`auth.test.ts`)
 
 ```ts
-// src/__tests__/board.api.test.ts
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
-import { app } from '../app';
-import { db } from '../db';
-import { users, boards } from '../db/schema';
+// src/routes/auth.test.ts
+import request from "supertest";
+import { describe, it, expect } from "vitest";
+import { app } from "../app"; // Your Express app (exported before listen)
 
-describe('Flowboard API Endpoints', () => {
-  let authCookie: string;
-  let testUserId: string;
-
-  beforeAll(async () => {
-    // 1. Create authenticated test user session
-    const signupRes = await request(app)
-      .post('/api/v1/auth/signup')
-      .send({
-        email: `tester_${Date.now()}@example.com`,
-        password: 'Password123!',
-      });
-
-    expect(signupRes.status).toBe(201);
-    testUserId = signupRes.body.data.user.id;
-
-    // Extract session cookie for authenticated requests
-    const loginRes = await request(app)
-      .post('/api/v1/auth/login')
-      .send({
-        email: signupRes.body.data.user.email,
-        password: 'Password123!',
-      });
-
-    authCookie = loginRes.headers['set-cookie'][0];
-  });
-
-  afterAll(async () => {
-    // Cleanup test records
-    if (testUserId) {
-      await db.delete(users);
-    }
-  });
-
-  it('POST /api/v1/boards - creates a board successfully with valid Zod input', async () => {
+describe("Auth API Endpoints", () => {
+  it("rejects registration with invalid email format", async () => {
     const res = await request(app)
-      .post('/api/v1/boards')
-      .set('Cookie', authCookie)
+      .post("/api/auth/register")
       .send({
-        title: 'Launch Strategy 2026',
-        description: 'Key deliverables for national expansion.',
+        email: "not-an-email",
+        password: "password123",
       });
 
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe('success');
-    expect(res.body.data.board.title).toBe('Launch Strategy 2026');
-    expect(res.body.data.board.id).toBeDefined();
+    // Verify status code:
+    expect(res.status).toBe(400);
+    // Verify error response:
+    expect(res.body.error).toBe("Validation failed");
+    expect(res.body.details.email).toBeDefined();
   });
 
-  it('POST /api/v1/boards - fails with 400 when title is missing or less than 3 characters', async () => {
+  it("rejects registration with a password shorter than 8 characters", async () => {
     const res = await request(app)
-      .post('/api/v1/boards')
-      .set('Cookie', authCookie)
+      .post("/api/auth/register")
       .send({
-        title: 'No', // Too short (min 3)
+        email: "valid@lagos.com",
+        password: "short", // Only 5 characters!
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.status).toBe('fail');
-    expect(res.body.errors.title).toBeDefined();
-  });
-
-  it('GET /api/v1/boards - fails with 401 when request is unauthenticated', async () => {
-    const res = await request(app).get('/api/v1/boards'); // No cookie provided
-
-    expect(res.status).toBe(401);
-    expect(res.body.status).toBe('fail');
+    expect(res.body.details.password).toContain("at least 8 characters");
   });
 });
 ```
 
+Run `npm test`, and in under 1 second, Vitest runs your tests and reports green checkmarks:
+`✓ rejects registration with invalid email format`
+`✓ rejects registration with a password shorter than 8 characters`
+
 ---
 
-### Common Pitfalls & How to Avoid Them
+## Module 5: Rookie Traps & Debugging Guide
 
-| Pitfall | Cause | Fix |
+| Error Message / Trap | Root Cause | How to Fix It |
 | :--- | :--- | :--- |
-| **Leaking stack traces in production** | Returning `err.stack` in error middleware without checking `NODE_ENV`. | Send generic error messages in production and log stack traces internally. |
-| **Validation after database query** | Validating user input inside the service or model layer. | Validate at the route layer using `validateRequest(schema)` middleware. |
-| **Mutating shared test database** | Tests colliding on duplicate email records across parallel runs. | Use unique test emails (`test_${Date.now()}@test.com`) and cleanup tables in `afterAll()`. |
+| `TypeError: Cannot read properties of undefined (reading 'safeParse')` | You passed an invalid object into `validateBody()` instead of a Zod schema. | Ensure your schema is defined with `z.object({ ... })`. |
+| Error middleware never runs | You omitted the fourth argument `next` in `(err, req, res, next)`. | Express **requires all 4 arguments** to recognize error middleware! |
+| Port already in use during testing | `app.listen(5000)` was executed inside the test file. | Separate your Express instance into `app.ts` and call `app.listen()` inside `server.ts`! |
 
 ---
 
-### Week 18: Comprehensive Assignment (Backend Capstone Milestone)
+## 🎯 Week 18 Hands-on Classroom Exercises
 
-**Objective:** Finalize the Flowboard Backend API with edge-level Zod validation, a unified AppError class hierarchy, and automated integration test coverage using Vitest and Supertest.
+### Level 1: Zod Schema Validation
+1. Create `createBoardSchema` and `validateBody` middleware.
+2. Connect it to `POST /api/boards`.
+3. In Thunder Client, send `{ "title": "ab" }` (too short) and verify that you receive a structured `400 Bad Request` explaining why it failed!
 
-**Requirements:**
-1. **Schema Validation:**
-   - Zod schemas declared for User Signup, User Login, Board Creation/Update, and UUID Param validation.
-   - `validateRequest` middleware intercepting and parsing `req.body` and `req.params`.
-2. **Centralized Error Handling:**
-   - `AppError`, `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, and `ConflictError` classes implemented.
-   - 4-argument `globalErrorHandler` middleware capturing database constraint codes (`23505`, `23503`) and producing uniform error envelopes.
-3. **Integration Test Suite:**
-   - Vitest & Supertest test suites covering:
-     - User signup and login authentication flow.
-     - Board creation validation failure (short title).
-     - Unauthorized access rejection on protected routes (`401`).
-     - Successful Board CRUD operations.
-   - Running `npm run test` executes and passes all test suites.
-4. **Git Workflow:**
-   - Backend milestone tagged `v1.0.0-backend`, merged into `main`, and pushed to GitHub.
+### Level 2: Centralized Error Pipeline
+1. Create the 4-argument global error handler.
+2. In a test route `GET /api/crash`, intentionally throw `new Error("Database disconnected")`.
+3. Verify that your error handler catches it and returns a clean `{ error: "Database disconnected" }` JSON response.
+
+### Level 3: Automated Integration Tests
+1. Set up Vitest and Supertest.
+2. Write automated tests for `POST /api/boards`:
+   - Test 1: Returns `401 Unauthorized` if no token is sent.
+   - Test 2: Returns `400 Bad Request` if title is empty.
+   - Test 3: Returns `201 Created` with valid title and token!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [Zod Official Documentation](https://zod.dev/) — TypeScript-first schema declaration, validation, and type inference guide.
-- [Supertest API Reference](https://github.com/ladjs/supertest) — High-level abstraction for testing Node.js HTTP servers with SuperAgent.
-- [Vitest Guide: Node Environment](https://vitest.dev/guide/environment.html) — Configuring fast in-memory Node.js test execution.
-- [The Twelve-Factor App Methodology](https://12factor.net/) — Standard principles for building scalable, testable, cloud-native web services.
-
-### Recommended Textbooks & Canonical Books
-- **Unit Testing Principles, Practices, and Patterns** by Vladimir Khorikov (Manning) — *Foundational guide to writing maintainable, valuable integration tests with high ROI.*
-- **Production-Ready Microservices** by Susan J. Fowler (O'Reilly) — *Chapter 4: Robustness, Fault Tolerance, Centralized Error Handling, and Validation.*
-- **Clean Architecture: A Craftsman's Guide to Software Structure and Design** by Robert C. Martin (Prentice Hall) — *Separation of concerns, boundary interfaces, and independent testability.*
-
-### Deep Dives & Engineering Guidelines
-- [Joyent: Error Handling in Node.js](https://www.joyent.com/node-js/production/design/errors) — The canonical explanation of Operational vs Programmer errors.
-- [TypeScript-ESLint: Best Practices for Error Handling](https://typescript-eslint.io/rules/only-throw-error/) — Enforcing strict error inheritance and typed catch clauses.
+* [Zod Official Documentation](https://zod.dev/) — The premier guide to TypeScript-first schema validation.
+* [Express.js Error Handling](https://expressjs.com/en/guide/error-handling.html) — Official documentation on error middleware pipelines.
+* [Vitest Official Documentation](https://vitest.dev/) — Fast unit and integration testing framework.
+* [Supertest GitHub & Guide](https://github.com/ladjs/supertest) — Simulating HTTP requests against Express apps.

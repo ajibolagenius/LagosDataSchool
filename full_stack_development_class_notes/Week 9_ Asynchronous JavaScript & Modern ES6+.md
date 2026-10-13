@@ -1,339 +1,428 @@
 # Week 9: Asynchronous JavaScript & Modern ES6+
 
-Until now, Lagos Spots has operated entirely on local, hardcoded mock data. This week, your application connects to the live web: querying real geospatial coordinates and places using OpenStreetMap's **Nominatim Geocoding API**. To accomplish this reliably, you master the asynchronous execution model of JavaScript: **The Event Loop (Call Stack, Web APIs, Microtask vs. Macrotask Queues)**, **Promises**, **`async`/`await`**, **Race Condition Prevention with `AbortController`**, and modular code organization via **ES Modules**.
+Welcome to Week 9! In Weeks 6, 7, and 8, you mastered JavaScript variables, functions, data structures, and the DOM. Everything we built worked with data already in memory or typed into a form.
+
+However, real-world applications don't keep all their data inside the browser. In the real world:
+- Instagram fetches new posts from a server.
+- Uber tracks real-time car coordinates across the city.
+- **Lagos Spots** queries live maps and place locations from OpenStreetMap.
+
+Talking to a server takes time: network packets travel across continents, and connections can be fast, slow, or drop entirely. If JavaScript waited synchronously for every network request, your entire webpage would **freeze and become completely unresponsive**.
+
+This week, you master **Asynchronous JavaScript**: the engine that keeps web apps snappy and responsive while fetching data from the live internet.
 
 ---
 
-## Module 1: The JavaScript Event Loop & Asynchronous Mechanics
-
-### 1. The Core Terminology of Asynchronous JavaScript
-
-| Term | What It Actually Means | Technical Context |
-| :--- | :--- | :--- |
-| **Single-Threaded** | JavaScript executes on a single main execution thread, processing one task at a time on its Call Stack. | Long-running synchronous calculations freeze the browser window (UI becomes unresponsive). |
-| **Non-Blocking I/O** | Delegating slow I/O operations (network requests, disk access, timers) to browser background threads (Web APIs) so the main thread remains responsive. | JavaScript registers a callback and continues executing subsequent lines immediately. |
-| **The Event Loop** | A continuous runtime coordination loop that monitors the Call Stack and task queues, pushing completed async callbacks onto the Call Stack when it becomes empty. | Dictates the exact deterministic order in which synchronous and asynchronous code executes. |
-| **Microtask Queue** | High-priority queue reserved for **Promise callbacks (`.then`, `.catch`, `await` resumes)** and `queueMicrotask()`. | Drained **completely to empty** before the browser renders or processes any macrotask. |
-| **Macrotask (Task) Queue** | Standard queue for **`setTimeout`**, **`setInterval`**, DOM events, and I/O callbacks. | The event loop processes **one macrotask at a time** before re-checking the microtask queue. |
-| **Promise** | An object representing the eventual completion (fulfillment) or failure (rejection) of an asynchronous operation. | Solves "Callback Hell" by providing composable, chainable async workflows. |
-
----
-
-### 2. Under the Hood: The Event Loop & Execution Priority
+## Pedagogical Roadmap
 
 ```mermaid
 flowchart TD
-    subgraph Synchronous["1. Main Thread"]
-        Stack["<b>Call Stack</b><br/>Executes active functions (LIFO)"]
-    end
-
-    subgraph BrowserCore["2. Background Threads"]
-        WebAPI["<b>Web APIs</b><br/>• fetch() HTTP requests<br/>• setTimeout() timers<br/>• DOM events"]
-    end
-
-    subgraph Queues["3. Task Queues"]
-        Micro["<b>Microtask Queue (VIP / High Priority)</b><br/>Promise .then / await resumes"]
-        Macro["<b>Macrotask Queue</b><br/>setTimeout / setInterval / UI events"]
-    end
-
-    Stack -->|"Offloads async task"| WebAPI
-    WebAPI -->|"Timer ready"| Macro
-    WebAPI -->|"Promise resolved"| Micro
-
-    subgraph Loop["4. The Event Loop"]
-        EL["Event Loop Engine"]
-    end
-
-    EL -->|"If Stack is Empty: DRAIN ALL"| Micro
-    Micro -->|"Push to Stack"| Stack
-    EL -->|"Then: Take ONE"| Macro
-    Macro -->|"Push to Stack"| Stack
-```
-
-#### Event Loop Execution Order Trace:
-```ts
-console.log('1. Synchronous Start');
-
-setTimeout(() => {
-  console.log('4. Macrotask (setTimeout)');
-}, 0);
-
-Promise.resolve().then(() => {
-  console.log('3. Microtask (Promise)');
-});
-
-console.log('2. Synchronous End');
-```
-
-**Console Output:**
-1. `1. Synchronous Start` (Stack)
-2. `2. Synchronous End` (Stack finishes synchronous script)
-3. `3. Microtask (Promise)` (Event loop prioritizes and drains Microtask Queue before Macrotask Queue)
-4. `4. Macrotask (setTimeout)` (Event loop takes next Macrotask)
-
----
-
-## Module 2: The Fetch API, Promises & `async`/`await`
-
-### 1. Under the Hood: The 3 States of a Promise
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending: Promise Created (Request In-Flight)
-    Pending --> Fulfilled: resolve(response) -> .then() / await result
-    Pending --> Rejected: reject(error) -> .catch() / try-catch block
-```
-
-1. **`Pending`:** Initial state; neither fulfilled nor rejected.
-2. **`Fulfilled`:** The operation completed successfully; produces a value.
-3. **`Rejected`:** The operation failed (e.g., DNS failure, network dropped); produces an error reason.
-
----
-
-### 2. The Fetch API & The `response.ok` Quirk
-
-> [!WARNING]
-> **The Most Common `fetch` Trap:** `fetch()` does **NOT** reject a Promise when an HTTP server returns an error status like `404 Not Found` or `500 Internal Server Error`. A `fetch` Promise **only rejects on physical network failures** (e.g., disconnected internet, DNS failure, CORS block).
-
-To handle HTTP errors properly, you must explicitly check `response.ok` (which is `true` for HTTP status codes in the range `200`–`299`):
-
-```ts
-// src/api.ts
-
-export interface NominatimLocation {
-  place_id: number;
-  lat: string;
-  lon: string;
-  display_name: string;
-  name: string;
-  address?: {
-    suburb?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-  };
-}
-
-export async function searchLocations(query: string, signal?: AbortSignal): Promise<NominatimLocation[]> {
-  const sanitizedQuery = encodeURIComponent(`${query.trim()}, Lagos, Nigeria`);
-  const endpoint = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${sanitizedQuery}`;
-
-  try {
-    const response = await fetch(endpoint, {
-      signal, // Enables request cancellation
-      headers: {
-        'Accept-Language': 'en',
-        'User-Agent': 'LagosSpotsApp/1.0', // OpenStreetMap requires a descriptive User-Agent
-      },
-    });
-
-    // Explicitly check HTTP Status 200-299
-    if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-    }
-
-    const data: NominatimLocation[] = await response.json();
-    return data;
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      console.log('Search request was aborted by user input.');
-      return [];
-    }
-    console.error('Failed to fetch locations from Nominatim:', error);
-    throw error; // Re-throw to let UI display error banner
-  }
-}
+    M1["<b>Module 1: Sync vs. Async (The Fast Food Analogy)</b><br/>• Single-threaded JavaScript<br/>• Non-blocking execution<br/>• setTimeout and timers"]
+    --> M2["<b>Module 2: The Evolution: Callbacks to Promises</b><br/>• The 'Callback Hell' problem<br/>• What is a Promise? (The IOU receipt)<br/>• .then(), .catch(), and .finally()"]
+    --> M3["<b>Module 3: Modern async / await</b><br/>• Writing async code that reads like sync code<br/>• Error handling with try ... catch<br/>• Beautiful, clean syntax"]
+    --> M4["<b>Module 4: The Fetch API from Scratch</b><br/>• The 2-step fetch process (fetch & res.json)<br/>• Checking response.ok<br/>• Querying OpenStreetMap Nominatim API live!"]
+    --> M5["<b>Module 5: UI States & User Experience</b><br/>• Loading spinners ('Searching places...')<br/>• Empty states ('No spots found')<br/>• Network error handling"]
+    --> M6["<b>Module 6: ES Modules & Clean Architecture</b><br/>• Splitting code: export and import<br/>• Concurrent fetches with Promise.all<br/>• Cancelling searches with AbortController"]
 ```
 
 ---
 
-### 3. Preventing Network Race Conditions with `AbortController`
+## Module 1: Synchronous vs. Asynchronous (The Fast Food Analogy)
 
-When a user types "L-E-K-K-I" into a search box, multiple network requests are dispatched in rapid succession. Due to network latency variability, **Request #1 ("L") may arrive *after* Request #5 ("Lekki")**, overwriting the latest search results with stale data:
+### 1. The Single-Threaded Chef
+
+> [!NOTE]
+> **The Mental Model:** JavaScript is **single-threaded**. It has only **one chef** in the kitchen (called the **Call Stack**). That chef can only chop one tomato, fry one egg, or stir one pot at a time.
+
+- **Synchronous (Blocking) Code:** 
+  Imagine the chef puts a pot of jollof rice on the stove to cook for 45 minutes, and stands there staring at the pot without doing anything else. The whole restaurant stops, customers get angry, and no new orders can be taken!
+- **Asynchronous (Non-Blocking) Code:** 
+  The chef puts the pot on the stove, sets a timer, and gives the customer an **order buzzer**. While the rice cooks in the oven (the background Web API), the chef continues serving other customers. When the buzzer rings, the chef plates the meal. The kitchen never freezes!
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User
-    participant App as Browser App
-    participant Net as Nominatim Server
+    participant Chef as JS Main Thread (Call Stack)
+    participant Oven as Browser Web API (Background)
+    participant Customer as Webpage UI
 
-    User->>App: Types "L"
-    App->>Net: Dispatches Request #1 ("L")
-    User->>App: Types "Lekki"
-    App->>Net: Dispatches Request #2 ("Lekki")
-    
-    Net-->>App: Request #2 Resolves in 150ms -> Shows "Lekki" results
-    Net-->>App: Request #1 Resolves in 800ms -> OVERWRITES UI with stale "L" results! (RACE CONDITION)
+    Chef->>Customer: Takes order & hands buzzer
+    Chef->>Oven: "Cook this in background!"
+    Note over Chef: Continues taking orders & responding to clicks!
+    Oven-->>Chef: "Cooking finished!" (Timer / Network Done)
+    Chef->>Customer: Delivers finished meal to user screen
 ```
 
-#### The Professional Solution: `AbortController`
-```ts
-// src/main.ts
-let activeAbortController: AbortController | null = null;
+---
 
-async function handleLiveSearch(query: string) {
-  if (query.trim().length < 2) {
-    renderSpots(spots);
-    return;
+### 2. Proof with `setTimeout()`
+
+```js
+console.log("1. Ordering food...");
+
+// setTimeout delays execution without blocking the rest of the script:
+setTimeout(() => {
+  console.log("3. Order is ready! (Arrived after 2 seconds)");
+}, 2000); // 2000 milliseconds = 2 seconds
+
+console.log("2. Chatting with friends while waiting...");
+```
+
+#### Console Output:
+```
+1. Ordering food...
+2. Chatting with friends while waiting...
+3. Order is ready! (Arrived after 2 seconds)
+```
+Notice that line 2 ran **immediately** while the timer was counting down in the background!
+
+---
+
+## Module 2: The Evolution: Callbacks to Promises
+
+### 1. The Problem with Callbacks ("Callback Hell")
+
+In early JavaScript, asynchronous operations used **callback functions**. If you needed to do three sequential actions (e.g., login $\to$ fetch spots $\to$ fetch reviews), your code quickly formed an unreadable, deeply nested triangle known as the **Pyramid of Doom**:
+
+```js
+// 🔴 The Old "Callback Hell" (Hard to read, hard to debug):
+loginUser(email, (user) => {
+  getUserSpots(user.id, (spots) => {
+    getSpotReviews(spots[0].id, (reviews) => {
+      renderReviews(reviews, () => {
+        console.log("Finally finished!");
+      });
+    });
+  });
+});
+```
+
+---
+
+### 2. What is a Promise? (The IOU Receipt)
+
+> [!TIP]
+> **The Mental Model:** A **Promise** is like an electronic buzzer at a fast-food counter or a laundry collection ticket. It promises that you will get a result in the future.
+> 
+> A Promise is always in one of **three states**:
+> 1. **`Pending`:** The request is in flight (the kitchen is cooking).
+> 2. **`Fulfilled` (Resolved):** Success! You received your meal (data). Handled with `.then()`.
+> 3. **`Rejected`:** Failed! The kitchen ran out of gas or the network dropped. Handled with `.catch()`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Request Dispatched
+    Pending --> Fulfilled: Success &rarr; .then(data)
+    Pending --> Rejected: Failure &rarr; .catch(error)
+```
+
+```js
+// Consuming a Promise with .then() and .catch():
+fetch("https://jsonplaceholder.typicode.com/posts/1")
+  .then((response) => {
+    return response.json(); // Parse the response body as JSON
+  })
+  .then((data) => {
+    console.log("Post Title:", data.title);
+  })
+  .catch((error) => {
+    console.error("Network request failed:", error);
+  })
+  .finally(() => {
+    console.log("Request finished (whether it succeeded or failed).");
+  });
+```
+
+---
+
+## Module 3: Modern `async` and `await`
+
+While `.then()` chains were a big upgrade over callbacks, ES2017 introduced **`async` and `await`**. This allows you to write asynchronous code that looks and reads like clean, synchronous line-by-line instructions.
+
+### 1. The Golden Rules of `async` / `await`
+1. You can only use `await` inside a function marked with **`async`**.
+2. `await` pauses execution of that specific function until the Promise settles, but **does NOT freeze the browser tab**.
+3. Always wrap `await` calls in a **`try ... catch`** block to handle errors gracefully.
+
+```mermaid
+flowchart TD
+    ASYNC["async function getSpots()"] --> TRY["try {"]
+    TRY --> AWAIT1["const res = await fetch(...)"]
+    AWAIT1 --> AWAIT2["const data = await res.json()"]
+    AWAIT2 --> RENDER["renderSpots(data)"]
+    TRY --> CATCH["} catch (error) {<br/>showErrorMessage(error)<br/>}"]
+```
+
+```js
+async function fetchSinglePost() {
+  try {
+    const response = await fetch("https://jsonplaceholder.typicode.com/posts/1");
+    const post = await response.json();
+    console.log("Post Title:", post.title);
+  } catch (error) {
+    console.error("Could not load post:", error);
   }
+}
 
-  // 1. Abort previous in-flight request if user is still typing
-  if (activeAbortController) {
-    activeAbortController.abort();
+fetchSinglePost();
+```
+
+---
+
+## Module 4: The Fetch API from Scratch
+
+### 1. The Two-Step Fetch Process
+
+When querying an API using `fetch(url)`, beginners are often surprised to find they must `await` twice:
+
+```mermaid
+flowchart LR
+    URL["fetch(url)"] --> STEP1["<b>1. await fetch()</b><br/>Receives HTTP Headers & Status Code<br/>(response.status: 200)"]
+    STEP1 --> STEP2["<b>2. await response.json()</b><br/>Downloads & Parses Body Payload<br/>into a live JavaScript Object"]
+```
+
+```js
+async function loadData() {
+  // Step 1: Request headers & status arrive
+  const response = await fetch("https://api.example.com/data");
+
+  // Step 2: The actual JSON text stream is downloaded and parsed
+  const data = await response.json();
+  
+  return data;
+}
+```
+
+---
+
+### 2. The `response.ok` Quirk
+
+> [!CAUTION]
+> **The Most Common Fetch Trap:** `fetch()` does **NOT** throw an error on `404 Not Found` or `500 Server Error`! As long as the server responds with a status code, the Promise considers the network request "successful".
+> 
+> **You must always check `response.ok` manually:**
+
+```js
+async function loadUserData(userId) {
+  try {
+    const res = await fetch(`https://api.example.com/users/${userId}`);
+
+    // If HTTP status is NOT in the 200-299 range:
+    if (!res.ok) {
+      throw new Error(`Server returned error status: ${res.status}`);
+    }
+
+    const userData = await res.json();
+    return userData;
+  } catch (error) {
+    console.error("Failed to load user:", error.message);
   }
-  activeAbortController = new AbortController();
+}
+```
 
-  const statusEl = document.getElementById('search-status');
-  if (statusEl) statusEl.textContent = 'Searching Lagos locations...';
+---
+
+### 3. Real-World Live API: Querying OpenStreetMap (Nominatim)
+
+Instead of fake mock data, let's query the live, free **OpenStreetMap Nominatim Geocoding API** to search for real locations in Lagos:
+
+```js
+async function searchLagosPlaces(searchTerm) {
+  // 1. Sanitize the query string:
+  const query = encodeURIComponent(`${searchTerm}, Lagos, Nigeria`);
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`;
 
   try {
-    const results = await searchLocations(query, activeAbortController.signal);
-    
+    const response = await fetch(url, {
+      headers: {
+        "Accept-Language": "en",
+        // OpenStreetMap requires a descriptive User-Agent:
+        "User-Agent": "LagosSpotsSchoolApp/1.0"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed with status: ${response.status}`);
+    }
+
+    const places = await response.json();
+    return places;
+  } catch (error) {
+    console.error("Geocoding failed:", error);
+    return []; // Return safe empty array on failure
+  }
+}
+
+// Try searching for places:
+searchLagosPlaces("Ikeja").then(results => {
+  results.forEach(place => {
+    console.log(`📍 ${place.display_name} (Lat: ${place.lat}, Lon: ${place.lon})`);
+  });
+});
+```
+
+---
+
+## Module 5: UI States & User Experience (UX)
+
+When writing real web applications, you must design for the three states of network data:
+
+```mermaid
+flowchart TD
+    DISPATCH["User initiates search"] --> LOADING["<b>1. Loading State</b><br/>Show spinner or 'Searching places...'"]
+    LOADING --> SUCCESS{"Data Received?"}
+    SUCCESS -->|Has Results| RESULTS["<b>2. Success State</b><br/>Render place cards on screen"]
+    SUCCESS -->|0 Items| EMPTY["<b>3. Empty State</b><br/>'No locations found for this query'"]
+    LOADING -->|Network Crashed| ERROR["<b>4. Error State</b><br/>'Network error. Check connection.'"]
+```
+
+### Complete Lagos Spots Search Feature with UI States:
+
+```js
+const searchInput = document.querySelector("#search-input");
+const statusMessage = document.querySelector("#status-message");
+const resultsContainer = document.querySelector("#results-container");
+
+searchInput.addEventListener("change", async (e) => {
+  const query = e.target.value.trim();
+  if (!query) return;
+
+  // 1. Show Loading State:
+  statusMessage.textContent = "⏳ Searching places in Lagos...";
+  resultsContainer.innerHTML = "";
+
+  try {
+    const results = await searchLagosPlaces(query);
+
+    // 2. Handle Empty State:
     if (results.length === 0) {
-      if (statusEl) statusEl.textContent = 'No matching places found.';
+      statusMessage.textContent = `❌ No places found matching "${query}". Try another area.`;
       return;
     }
 
-    if (statusEl) statusEl.textContent = '';
-    renderApiSearchResults(results);
-  } catch (error: any) {
-    if (error.name !== 'AbortError') {
-      if (statusEl) statusEl.textContent = 'Network error. Please check your connection.';
-    }
+    // 3. Handle Success State:
+    statusMessage.textContent = `Found ${results.length} locations:`;
+    
+    results.forEach(place => {
+      const card = document.createElement("article");
+      card.className = "p-3 bg-white rounded shadow border mb-2";
+      card.innerHTML = `
+        <h4 class="font-bold text-slate-800">${place.name || query}</h4>
+        <p class="text-xs text-slate-500">${place.display_name}</p>
+        <span class="text-xs text-orange-600 font-semibold">Coordinates: ${place.lat}, ${place.lon}</span>
+      `;
+      resultsContainer.append(card);
+    });
+
+  } catch (error) {
+    // 4. Handle Error State:
+    statusMessage.textContent = "⚠️ Unable to connect to map services. Please check your internet connection.";
   }
+});
+```
+
+---
+
+## Module 6: ES Modules & Clean Architecture
+
+### 1. Splitting Code with `import` and `export`
+
+As projects grow, keeping all your JavaScript in one 1,000-line `script.js` file becomes a nightmare. Modern JavaScript allows you to organize code into separate **modules**:
+
+```
+project/
+├── index.html
+├── src/
+│   ├── api.js       <-- Network queries (searchLagosPlaces)
+│   ├── storage.js   <-- localStorage favorites logic
+│   ├── dom.js       <-- Card rendering and UI helpers
+│   └── main.js      <-- Main coordinator and event listeners
+```
+
+#### Step 1: Exporting from `src/api.js`:
+```js
+// src/api.js
+export async function searchLagosPlaces(searchTerm) {
+  // ... fetch code here ...
+}
+```
+
+#### Step 2: Importing into `src/main.js`:
+```js
+// src/main.js
+import { searchLagosPlaces } from "./api.js";
+
+searchLagosPlaces("Lekki").then(data => console.log(data));
+```
+
+#### Step 3: Enabling Modules in `index.html`:
+```html
+<!-- Note type="module" -->
+<script type="module" src="./src/main.js"></script>
+```
+
+---
+
+### 2. Parallel Requests with `Promise.all()`
+
+If you need to fetch data for multiple neighborhoods at the same time:
+- **Sequential (Slow):** Waiting for Ikoyi (500ms), then waiting for VI (500ms), then waiting for Lekki (500ms) = **1500ms total**.
+- **Parallel (Fast):** Firing all three requests at once using `Promise.all()` = **~500ms total**!
+
+```js
+async function loadTopNeighborhoods() {
+  console.time("Parallel Load");
+
+  // All 3 requests start at the exact same moment:
+  const [ikoyi, vi, lekki] = await Promise.all([
+    searchLagosPlaces("Ikoyi"),
+    searchLagosPlaces("Victoria Island"),
+    searchLagosPlaces("Lekki")
+  ]);
+
+  console.timeEnd("Parallel Load");
+  console.log("Ikoyi results:", ikoyi.length);
+  console.log("VI results:", vi.length);
+  console.log("Lekki results:", lekki.length);
 }
 ```
 
 ---
 
-## Module 3: Parallel Execution & Modern ES6+ Features
+## Module 7: Rookie Traps & Debugging Guide
 
-### 1. Concurrency: `Promise.all` vs `Promise.allSettled`
-
-| Method | Execution Behavior | Failure Behavior |
+| Error Message / Trap | What Caused It | How to Fix It |
 | :--- | :--- | :--- |
-| **`Promise.all([p1, p2, p3])`** | Runs all promises **concurrently**. | **Fail-Fast:** Rejects immediately if *any single* promise rejects, discarding other results. |
-| **`Promise.allSettled([p1, p2, p3])`** | Runs all promises **concurrently**. | **Never Rejects:** Waits for *all* promises to settle and returns an array of objects: `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`. |
-
-```ts
-// Fetch multiple neighborhood spots concurrently in parallel:
-async function loadNeighborhoods(neighborhoods: string[]) {
-  console.time('Parallel Fetch');
-  
-  // All 3 network requests fire at the same instant
-  const results = await Promise.all(
-    neighborhoods.map((area) => searchLocations(area))
-  );
-  
-  console.timeEnd('Parallel Fetch'); // ~300ms total (instead of 300ms x 3 = 900ms sequential)
-  return results.flat();
-}
-```
+| `SyntaxError: await is only valid in async functions` | You typed `await` inside a regular function without the `async` keyword. | Add `async` to the enclosing function declaration: `async function myFunc()`. |
+| `Promise { <pending> }` logged to console | You logged a Promise directly without `await`ing its result. | Put `await` before the async function call: `const data = await getPlaces();`. |
+| Uncaught (in promise) Error crashes page | A network request failed and you didn't have a `try/catch` block. | Always wrap `await fetch()` in `try { ... } catch (err) { ... }`. |
+| `Failed to load module script: Access to script blocked by CORS` | You opened your HTML file using `file:///` in the browser instead of a local web server. | Run a local server (like the VS Code Live Server extension, or `npx serve`). |
 
 ---
 
-### 2. Modern ES6+ Defensive Syntax
+## 🎯 Week 9 Hands-on Classroom Exercises
 
-#### Optional Chaining (`?.`) & Nullish Coalescing (`??`):
-When consuming unpredictable third-party API data, optional chaining stops fatal `TypeError: Cannot read properties of undefined` crashes:
+### Level 1: Warmup with Timers & Promises
+1. Create a function `delayedGreeting(name, delayMs)` that returns a Promise which resolves with `"Hello, [name]!"` after `delayMs` milliseconds.
+2. Call the function using `async/await` and log the output.
 
-```ts
-// Safe extraction from dynamic API responses
-function transformApiResultToSpot(result: NominatimLocation): Spot {
-  const primaryName = result?.name || result?.display_name?.split(',')?.[0] || 'Unnamed Spot';
-  const neighborhood = result?.address?.suburb ?? result?.address?.city ?? 'Lagos';
+### Level 2: Fetching Sample Data
+1. Use `fetch()` to query `https://jsonplaceholder.typicode.com/users`.
+2. Extract the data into an array of user objects using `await response.json()`.
+3. Loop through the users and display their `name`, `email`, and `city` inside a styled `<ul>` on your page.
 
-  return {
-    id: `osm-${result.place_id}`,
-    name: primaryName.trim(),
-    category: 'study', // Default categorization
-    area: neighborhood,
-    description: result.display_name,
-    imageUrl: '/assets/placeholder-spot.jpg',
-  };
-}
-```
+### Level 3: Real Lagos Spots Geocoding Search
+1. In your `lagos-spots` project, wire your search bar to the Nominatim OpenStreetMap API.
+2. When the user types an area in Lagos (e.g., "Surulere", "Yaba", "Victoria Island"), show a loading spinner or indicator.
+3. Fetch the top 3 matching places and render them as interactive cards.
+4. When the user clicks on a search result card, display its coordinates (`lat` and `lon`) on the screen!
 
 ---
 
-## Module 4: Modular Architecture with ES Modules (ESM)
+## 📚 Curated Deep-Dive References
 
-Organize the application into single-responsibility ES Modules:
-
-```
-src/
-├── types.ts          # Shared TypeScript interfaces (Spot, Category)
-├── api.ts            # External Nominatim network calls & error handling
-├── storage.ts        # localStorage read/write with JSON validation
-├── dom.ts            # Programmatic DOM node generation & sanitization
-└── main.ts           # Orchestrator / Event Listeners & Application State
-```
-
-```ts
-// src/types.ts
-export interface Spot {
-  id: string;
-  name: string;
-  category: 'food' | 'study' | 'nightlife' | 'events';
-  area: string;
-  description: string;
-  imageUrl: string;
-  isFavorite?: boolean;
-}
-
-// src/main.ts
-import { Spot } from './types';
-import { searchLocations } from './api';
-import { getStoredFavoriteIds, toggleFavoriteId } from './storage';
-import { createSpotCardElement } from './dom';
-```
-
----
-
-### Common Pitfalls & How to Avoid Them
-
-| Pitfall | Root Cause | Fix |
-| :--- | :--- | :--- |
-| **Assuming `fetch` rejects on 404/500** | `fetch` resolves on any completed HTTP response. | Always check `if (!response.ok) throw new Error(...)`. |
-| **Race conditions on rapid typing** | Slow earlier network requests resolving after faster newer requests. | Use `AbortController` to cancel previous requests. |
-| **Sequential `await` in loops** | `for (const x of arr) await fetch(x)` executes sequentially, multiplying latency. | Use `await Promise.all(arr.map(x => fetch(x)))`. |
-| **Uncaught rejection crashes** | Missing `try/catch` around `await` calls. | Always handle async errors with `try/catch` and update UI status indicators. |
-
----
-
-### Week 9: Comprehensive Assignment
-
-**Objective:** Wire Lagos Spots to the live OpenStreetMap Nominatim API, implementing asynchronous search-as-you-type with `AbortController` race condition protection, error states, and a clean ES Module file architecture.
-
-**Requirements:**
-1. **Live Geocoding Integration:**
-   - Real network calls to Nominatim using `fetch()`, with proper `encodeURIComponent` escaping and `Accept-Language` headers.
-   - Explicit `response.ok` status validation.
-2. **Race Condition Prevention & Debouncing:**
-   - Live search input wrapped with a 300ms debounce.
-   - Previous in-flight search requests aborted via `AbortController` when a new search begins.
-3. **Robust UI State Management:**
-   - Clear visual feedback for: "Searching places in Lagos...", "No locations found", and network failure error banners.
-4. **Modular Architecture:**
-   - Code cleanly separated into `src/types.ts`, `src/api.ts`, `src/storage.ts`, `src/dom.ts`, and `src/main.ts` using ES Module `import`/`export`.
-5. **Git Workflow:**
-   - Developed on branch `feature/async-api-modules`, merged via Pull Request, and pulled locally.
-
----
-
-## Recommended References & Deep-Dive Resources
-
-### Official Documentation & Standards
-- [MDN Web Docs: Asynchronous JavaScript](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Asynchronous) — Comprehensive guide to the Event Loop, Promises, `async`/`await`, and the Fetch API.
-- [MDN Web Docs: AbortController API](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) — Standards guide for cancelling in-flight fetch requests and preventing async race conditions.
-- [OpenStreetMap Nominatim API Specification](https://nominatim.org/release-docs/latest/api/Search/) — Documentation for free geospatial search queries, parameters, and usage policies.
-
-### Recommended Textbooks & Canonical Books
-- **You Don't Know JS: Async & Performance** by Kyle Simpson (O'Reilly) — *Chapters 1–4: Asynchrony: Now & Later, Callbacks, Promises, and Generators/Async.*
-- **JavaScript: The Good Parts** by Douglas Crockford (O'Reilly) — *Foundations of asynchronous callback design patterns and modular JavaScript.*
-
-### Deep Dives & Visual Explainers
-- [Philip Roberts: What the heck is the event loop anyway? (JSConf)](https://www.youtube.com/watch?v=8aGhZQkoFbQ) — The canonical 20-minute video presentation explaining the Call Stack, Web APIs, Task Queue, and Event Loop.
-- [JavaScript Visualized: Event Loop by Lydia Hallie](https://dev.to/lydiahallie/javascript-visualized-event-loop-3dif) — Animated gifs illustrating microtasks vs macrotasks prioritization.
-- [JavaScript.info: Promises, async/await](https://javascript.info/async) — Clear interactive tutorials on Promise chaining and error handling.
+* [JavaScript.info: Promises](https://javascript.info/promise-basics) — The best visual and intuitive guide to JavaScript Promises.
+* [JavaScript.info: Async/await](https://javascript.info/async-await) — Step-by-step masterclass on async/await syntax and error catching.
+* [The Valley of Code: Asynchronous JavaScript](https://thevalleyofcode.com/javascript/asynchronous) — Flavio Copes' gentle, beginner-focused asynchronous guide.
+* [MDN Web Docs: How to use Promises](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Asynchronous/Promises) — Comprehensive Mozilla tutorial.
+* [MDN Web Docs: Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch) — Authoritative reference on requests, headers, and json parsing.
+* [OpenStreetMap Nominatim Search API](https://nominatim.org/release-docs/latest/api/Search/) — Official OpenStreetMap query parameters and documentation.

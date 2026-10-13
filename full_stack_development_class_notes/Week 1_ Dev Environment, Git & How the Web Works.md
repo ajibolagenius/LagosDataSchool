@@ -1,395 +1,324 @@
 # Week 1: Dev Environment, Git & GitHub, How the Web Works
 
-Welcome to Full-Stack Development. Before writing a single line of a real page, you need three things: a working toolset, an understanding of what actually happens when someone visits a website, and a safety net for your work that isn't just "the last time I saved the file." This week gives you all three, and opens the project you'll keep building and rebuilding for the rest of the course: **Lagos Spots** — a real directory of places around Lagos (restaurants, hangouts, study spots, events) that people can search, filter, and add to.
+Welcome to the **Comprehensive Full-Stack Development Course** at Lagos Data School! 
+
+Whether you have never written a single line of code in your life or have dabbled with small scripts, this course is designed to take you from a complete beginner all the way to building, testing, and deploying production-grade web applications.
+
+Before writing code, every professional software engineer needs three fundamental things:
+1. **A clear mental model of how the web actually works.**
+2. **A professional development environment** configured on their computer.
+3. **A version control safety net (Git & GitHub)** so your code is never lost or accidentally overwritten.
+
+This week, you will set up your developer workstation, master Git, and initialize the project you will build and evolve throughout this course: **Lagos Spots** — a real directory of places around Lagos (restaurants, arts, study spots, and nightlife).
 
 ---
 
-## Module 1: How the Web Actually Works
-
-### 1. The Core Terminology of the Web
-
-To communicate effectively as an engineer, you need precise terminology for the systems that power every web interaction:
-
-| Term | What It Actually Means | Why It Matters / Real-World Context |
-| :--- | :--- | :--- |
-| **Client (User Agent)** | The software or device initiating an action (e.g., Google Chrome, Safari, a mobile app, or a CLI script like `curl`). | It parses and renders resources (HTML, CSS, JS) and handles user interaction. |
-| **Server (Host)** | A computer connected to the internet running software (like Nginx, Node.js, or Apache) configured to listen for and respond to incoming network requests. | Stores data, executes business logic, and serves files to clients. |
-| **IP Address** | A unique numerical identifier assigned to every device connected to a network (IPv4: `192.0.2.10`, IPv6: `2001:0db8::1`). | Computers cannot route packets using human names like `lagosspots.app`; they route strictly by IP. |
-| **DNS (Domain Name System)** | A globally distributed hierarchical database that translates human-readable domain names into numerical IP addresses. | The "phonebook" of the internet. Without DNS, users would have to memorize raw IP addresses. |
-| **Port** | A 16-bit number (0–65535) identifying a specific application or service running on a host computer. | Web traffic uses Port `80` (HTTP) and Port `443` (HTTPS). Local development typically uses ports like `3000`, `5173`, or `8080`. |
-| **Protocol (HTTP / HTTPS)** | A standardized set of rules governing how two computers format and transmit messages. | HTTP is plaintext. HTTPS adds **TLS/SSL encryption** so passwords, session tokens, and data cannot be intercepted in transit. |
-
----
-
-### 2. The Three Languages of the Web: Separation of Concerns
-
-Every website is built from three distinct technologies. Understanding their strict division of responsibility prevents architectural anti-patterns:
+## Pedagogical Roadmap
 
 ```mermaid
-graph LR
-    subgraph Browser["Web Browser (Client)"]
-        HTML["<b>HTML</b><br/>Semantic Content & Structure<br/><i>(The Skeleton)</i>"]
-        CSS["<b>CSS</b><br/>Visual Styling & Layout<br/><i>(The Skin)</i>"]
-        JS["<b>JavaScript</b><br/>Logic & Interactivity<br/><i>(The Brain / Muscles)</i>"]
-    end
-    HTML -->|"Structured Elements"| DOM["Document Object Model (DOM)"]
-    CSS -->|"Style Rules"| CSSOM["CSS Object Model (CSSOM)"]
-    DOM & CSSOM -->|"Combined"| RenderTree["Render Tree -> Screen"]
-    JS -.->|"Manipulates"| DOM
-    JS -.->|"Manipulates"| CSSOM
+flowchart TD
+    M1["<b>Module 1: How the Web Works</b><br/>• Client vs Server (The Restaurant Order Analogy)<br/>• What happens when you type a URL? (DNS & HTTP)<br/>• The Three Languages: HTML, CSS, JavaScript"]
+    --> M2["<b>Module 2: The Developer Workstation</b><br/>• Installing VS Code & Node.js LTS<br/>• Chrome DevTools (Elements, Console, Network)<br/>• Terminal Basics from Scratch (pwd, ls, cd, mkdir)"]
+    --> M3["<b>Module 3: Git (The Video Game Save Point Analogy)</b><br/>• What is Version Control?<br/>• The 3 Local Zones: Working Directory, Staging, Commit<br/>• git init, git add, git commit, git status"]
+    --> M4["<b>Module 4: GitHub & Remote Repositories</b><br/>• Git (Local tool) vs GitHub (Cloud platform)<br/>• Connecting remotes & pushing code (git push)<br/>• Protecting secrets with .gitignore"]
+    --> M5["<b>Module 5: Professional Branching & Pull Requests</b><br/>• Why we never code directly on main<br/>• Creating branches (git checkout -b)<br/>• Opening your first Pull Request on GitHub"]
 ```
-
-1. **HTML (HyperText Markup Language):** Describes *what* is on the page. It carries meaning (semantics) — headings, paragraphs, lists, forms, and landmark sections. HTML contains no presentation rules or dynamic calculation logic.
-2. **CSS (Cascading Style Sheets):** Describes *how* things look and are positioned. It controls colors, typography, spacing, responsive grid layouts, and visual transitions. CSS does not define content.
-3. **JavaScript (JS):** Describes *what happens* when events occur. It fetches data asynchronously from APIs, validates user inputs on the fly, updates the DOM without full page reloads, and manages application state.
-
-* **Class Exercise: Take Apart a Real Directory Site**
-    1. Open a real site that lists places — Google Maps, TripAdvisor, or EatDrinkLagos.
-    2. Point out what is HTML (place names, addresses, ratings, structural list tags), what is CSS (card border radius, flexbox alignment, badge colors), and what is JS (interactive search filter, map zooming, bookmarking a spot).
-    3. Right-click anywhere on the page and choose **"Inspect"** to open DevTools. Look at the live HTML nodes.
 
 ---
 
-### 3. Under the Hood: The Request/Response Lifecycle
+## Module 1: How the Web Works (The Restaurant Order Analogy)
 
-When you type `https://lagosspots.app/places` into a browser address bar and press **Enter**, a precise sequence of low-level networking events takes place:
+### 1. The Client-Server Model
+
+Every interaction on the internet follows a simple two-party conversation:
+
+> [!NOTE]
+> **The Mental Model:**
+> - **The Client (Customer):** Your web browser (Google Chrome, Safari, or a smartphone). The client places orders by requesting web pages or images.
+> - **The Server (The Kitchen):** A computer connected to the internet running 24/7. It listens for orders, retrieves files from disk or a database, and serves the response back to the client.
 
 ```mermaid
 sequenceDiagram
-    autonumber
     actor User
-    participant Browser
-    participant OS_DNS as OS / DNS Resolver
-    participant Server as Web Server (192.0.2.10)
+    participant Browser as Client (Chrome Browser)
+    participant DNS as DNS Server (Internet Phonebook)
+    participant Server as Web Server (Lagos Spots Host)
 
-    User->>Browser: Types "lagosspots.app" & hits Enter
-    Browser->>OS_DNS: Query: Where is lagosspots.app?
-    OS_DNS-->>Browser: IP Address: 192.0.2.10
-    
-    rect rgb(240, 245, 255)
-        note right of Browser: TCP 3-Way Handshake + TLS Handshake (Port 443)
-        Browser->>Server: SYN
-        Server-->>Browser: SYN-ACK
-        Browser->>Server: ACK
-        Browser->>Server: TLS Client Hello (Negotiate Encryption)
-        Server-->>Browser: TLS Server Hello + Certificate
-    end
-
-    Browser->>Server: HTTP GET /places (Headers: Accept, User-Agent)
-    Server->>Server: Look up route, query data, assemble HTML
-    Server-->>Browser: HTTP 200 OK (Content-Type: text/html, Payload: HTML)
-    
-    rect rgb(245, 255, 240)
-        note over Browser: Critical Rendering Path (Parse HTML, fetch CSS/JS, Render)
-        Browser->>Server: GET /styles.css
-        Server-->>Browser: 200 OK (CSS)
-        Browser->>Server: GET /app.js
-        Server-->>Browser: 200 OK (JavaScript)
-    end
+    User->>Browser: Types "lagosspots.ng" & hits Enter
+    Browser->>DNS: "What is the numeric IP address of lagosspots.ng?"
+    DNS-->>Browser: "It lives at 192.0.2.10"
+    Browser->>Server: HTTP Request: "Send me the homepage (GET /)"
+    Server-->>Browser: HTTP Response: Sends HTML, CSS, and images!
+    Browser-->>User: Renders the page visually on screen
 ```
 
-#### Step-by-Step Mechanics:
-1. **URL Parsing:** The browser breaks down `https://lagosspots.app:443/places`:
-   - **Scheme:** `https` (secure HTTP)
-   - **Host:** `lagosspots.app`
-   - **Port:** `443` (implicit default for HTTPS)
-   - **Path:** `/places`
-2. **DNS Resolution:** The browser checks its local cache $\to$ OS hosts file & cache $\to$ queries your ISP's recursive DNS resolver $\to$ queries Root, TLD (`.app`), and Authoritative DNS servers to get `192.0.2.10`.
-3. **TCP Connection & TLS Handshake:** 
-   - A **TCP 3-Way Handshake** (`SYN` $\to$ `SYN-ACK` $\to$ `ACK`) establishes a reliable, ordered byte-stream connection.
-   - A **TLS (Transport Layer Security) Handshake** verifies the server's SSL certificate and negotiates a shared symmetric encryption key.
-4. **HTTP Request Transmission:** The browser formats and sends an HTTP request over the encrypted tunnel:
-   ```http
-   GET /places HTTP/1.1
-   Host: lagosspots.app
-   User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
-   Accept: text/html,application/xhtml+xml
-   Accept-Language: en-US,en;q=0.9
-   ```
-5. **Server Processing & HTTP Response:** The server processes the request and responds with a status line, headers, and the document body:
-   ```http
-   HTTP/1.1 200 OK
-   Content-Type: text/html; charset=UTF-8
-   Content-Length: 4210
-   Cache-Control: max-age=3600
+---
 
-   <!DOCTYPE html>
-   <html lang="en">
-     <head>...</head>
-     <body>...</body>
-   </html>
-   ```
-6. **Critical Rendering Path:** The browser reads the HTML stream token-by-token:
-   - Constructs the **DOM Tree** (nodes for elements, attributes, text).
-   - Encounters `<link rel="stylesheet">`, sends secondary HTTP request, builds the **CSSOM Tree**.
-   - Combines DOM + CSSOM into the **Render Tree** (calculates layout coordinates $\to$ paints pixels on screen).
+### 2. What is an IP Address & DNS?
+
+Computers do not communicate using human names like `lagosspots.ng`. They communicate using numeric **IP Addresses** (e.g., `192.0.2.10`).
+
+> [!TIP]
+> **DNS (Domain Name System)** is simply the **Contacts List / Phonebook of the Internet**.
+> When you want to call your friend Tunde, you don't memorize his 11-digit phone number — you tap "Tunde" in your contacts, and your phone looks up the number. DNS does the exact same thing for domain names!
 
 ---
 
-### 4. Anatomy of HTTP Status Codes
+### 3. The Three Building Blocks of the Web
 
-Every HTTP response includes a 3-digit status code communicating the outcome:
+Every webpage you visit is constructed from three distinct technologies:
 
-| Range | Category | Common Examples | Meaning & Practical Context |
-| :--- | :--- | :--- | :--- |
-| **`1xx`** | Informational | `101 Switching Protocols` | Handshake upgrade (e.g., upgrading HTTP to WebSockets). |
-| **`2xx`** | Success | `200 OK`<br>`201 Created`<br>`204 No Content` | • `200`: Standard successful response.<br>• `201`: Resource successfully created (e.g., new spot added via `POST`).<br>• `204`: Succeeded, but no response body returned (e.g., `DELETE`). |
-| **`3xx`** | Redirection | `301 Moved Permanently`<br>`304 Not Modified` | • `301`: Resource has a permanent new URL.<br>• `304`: Cached copy is still fresh; browser does not need to re-download. |
-| **`4xx`** | Client Error | `400 Bad Request`<br>`401 Unauthorized`<br>`403 Forbidden`<br>`404 Not Found` | • `400`: Malformed payload / validation failure.<br>• `401`: Missing or invalid authentication token.<br>• `403`: Authenticated, but user lacks permission.<br>• `404`: Requested URL/resource does not exist. |
-| **`5xx`** | Server Error | `500 Internal Server Error`<br>`502 Bad Gateway`<br>`503 Service Unavailable` | • `500`: Unhandled crash/exception in backend code.<br>• `502`/`503`: Upstream server down or overloaded. |
-
-* **Class Exercise: Watch a Real Request in DevTools**
-    1. Open Chrome/Firefox DevTools (`Cmd+Opt+I` on Mac, `Ctrl+Shift+I` on Windows).
-    2. Go to the **Network** tab and check **"Preserve log"** and **"Disable cache"**.
-    3. Visit any website and reload.
-    4. Click the very first request (the root document). Inspect the **Headers** (Request vs Response), **Status Code**, and the raw **Response** HTML.
+| Language | Role | Real-World Analogy |
+| :--- | :--- | :--- |
+| **HTML** *(HyperText Markup Language)* | Content, structure, headings, paragraphs, and forms. | **The Skeleton & Brickwork** |
+| **CSS** *(Cascading Style Sheets)* | Colors, fonts, layout, spacing, and mobile responsiveness. | **The Paint, Interior Decor & Clothing** |
+| **JavaScript** *(JS)* | Interactivity, search filtering, button clicks, and live API data. | **The Brain, Muscles & Electrical Wiring** |
 
 ---
 
-### 5. Developer Tooling & Workspace Setup
+## Module 2: The Developer Workstation & Terminal Basics
 
-Professional development requires a standard environment:
-1. **VS Code (Visual Studio Code):** The industry standard extensible code editor.
-2. **Terminal (CLI / Command Line Interface):** Text-based interface to run scripts, start dev servers, and execute Git commands.
-3. **Browser DevTools:**
-   - **Elements Tab:** Live DOM tree inspection and realtime CSS modification.
-   - **Console Tab:** Realtime JavaScript execution, error stack traces, and `console.log()` output.
-   - **Network Tab:** Complete timeline of HTTP requests, payload payloads, headers, and asset sizes.
-
-* **Class Exercise: Workspace Initialization**
-    1. Install VS Code from `code.visualstudio.com`.
-    2. Create a project directory: `mkdir lagos-spots && cd lagos-spots`.
-    3. Open the entire directory in VS Code: `code .` (or open the folder from the VS Code GUI).
-    4. Open the integrated terminal (`Ctrl+\`` or `Terminal > New Terminal`).
+### 1. Essential Tools to Install
+1. **VS Code (Visual Studio Code):** Download from [code.visualstudio.com](https://code.visualstudio.com). The world's most popular code editor.
+2. **Node.js LTS (Long Term Support):** Download from [nodejs.org](https://nodejs.org).
+3. **Git:** Download from [git-scm.com](https://git-scm.com).
+4. **Google Chrome:** For its built-in Developer Tools.
 
 ---
 
-## Module 2: Version Control with Git & GitHub
+### 2. Terminal Basics from Scratch
 
-### 1. Git Mental Model: The Four Areas
+As a software engineer, you will use the **Terminal (Command Line)** every day. Think of the terminal as navigating your computer using text instead of clicking mouse icons:
 
-**Git is a Distributed Version Control System (DVCS)** that tracks changes to files over time as cryptographic snapshots. **GitHub is a cloud hosting service** for Git repositories.
-
-To understand Git, you must understand the four distinct storage areas on your machine:
-
-```mermaid
-graph LR
-    subgraph Local["Your Local Machine"]
-        WD["<b>Working Directory</b><br/>Actual files you edit"]
-        SA["<b>Staging Area (Index)</b><br/>Draft for next snapshot"]
-        LR["<b>Local Repository (.git)</b><br/>Committed history / Commits"]
-    end
-    subgraph Remote["Cloud Server"]
-        RR["<b>Remote Repository (GitHub)</b><br/>Shared team history"]
-    end
-
-    WD -->|"git add &lt;file&gt;"| SA
-    SA -->|"git commit -m '...'"| LR
-    LR -->|"git push origin main"| RR
-    RR -->|"git fetch / git pull"| LR
-    LR -.->|"git checkout / git switch"| WD
-```
-
-1. **Working Directory:** The actual physical files on your hard drive you are currently editing.
-2. **Staging Area (Index):** A preparation buffer. You selectively stage modified files to define *what* goes into the next snapshot.
-3. **Local Repository (`.git/` folder):** A complete database containing all committed snapshots, branch pointers, and project history on your machine.
-4. **Remote Repository (GitHub):** A centralized cloud copy allowing collaboration, backup, and automated deployment pipelines.
+| Command | What It Means | Plain English Explanation |
+| :--- | :--- | :--- |
+| **`pwd`** | **P**rint **W**orking **D**irectory | *"Where am I right now?"* Shows your current folder path. |
+| **`ls`** (or `dir` on Windows) | **L**i**s**t | *"What files and folders are inside this directory?"* |
+| **`cd <folder>`** | **C**hange **D**irectory | Moves you into a folder (e.g., `cd Desktop`). |
+| **`cd ..`** | Change Directory (Up) | Moves you back up one folder level. |
+| **`mkdir <name>`** | **M**a**k**e **D**irectory | Creates a brand new folder. |
+| **`touch <file>`** | Touch / Create file | Creates an empty new file (e.g., `touch index.html`). |
+| **`code .`** | Open in VS Code | Opens the current folder inside VS Code! |
 
 ---
 
-### 2. Under the Hood: What is a Commit?
-
-A Git commit is **not** a diff of lines changed; it is a **complete snapshot** of all files at that moment in time.
-
-```mermaid
-graph TD
-    Commit["<b>Commit Object</b><br/>SHA: a1b2c3d...<br/>Author: Ajibola<br/>Message: 'feat: add spot card markup'<br/>Parent: 9f8e7d6..."]
-    Tree["<b>Root Tree Object</b>"]
-    Blob1["<b>Blob:</b> index.html"]
-    Blob2["<b>Blob:</b> styles.css"]
-    Blob3["<b>Blob:</b> README.md"]
-
-    Commit --> Tree
-    Tree --> Blob1
-    Tree --> Blob2
-    Tree --> Blob3
-```
-
-- Every commit receives a unique 40-character **SHA-1 (or SHA-256) hash** (e.g., `faae6df...`) derived from its file contents, author, timestamp, and parent commit hash.
-- Because parent hashes are chained together, **Git history is an immutable Directed Acyclic Graph (DAG)**. You cannot alter a past commit without changing all subsequent commit hashes.
-- **`HEAD`:** A special pointer that indicates which commit/branch your working directory is currently based on.
-
----
-
-### 3. Step-by-Step Command Lifecycle
-
+### 🏋️ Try It in Your Terminal Now (Drill 1)
+Open your terminal (Terminal on Mac, Git Bash / PowerShell on Windows) and run:
 ```bash
-# 1. Initialize a new local Git repository
+# 1. Check where you are:
+pwd
+
+# 2. Go to your Desktop:
+cd Desktop
+
+# 3. Create a project folder:
+mkdir lagos-spots
 cd lagos-spots
+
+# 4. Open the folder in VS Code:
+code .
+```
+
+---
+
+## Module 3: Git (The Video Game Save Point Analogy)
+
+### 1. What is Version Control?
+
+Have you ever saved files like this?
+- `final_project.html`
+- `final_project_v2.html`
+- `final_project_real_final_EDITED.html`
+
+This creates chaos. If something breaks, you don't know which file worked or what changed.
+
+> [!NOTE]
+> **The Mental Model:** **Git** is a time machine and a **Save Point system** for your code (just like checkpoints in a video game).
+> Every time you reach a working milestone, you create a "Commit" (a save checkpoint). If your code breaks tomorrow, you can instantly roll back to any past checkpoint in history!
+
+---
+
+### 2. The Three Local Zones of Git
+
+To understand Git, you only need to understand three zones on your computer:
+
+```mermaid
+flowchart LR
+    ZONE1["<b>1. Working Directory</b><br/>The files you are currently editing<br/><i>(Unsaved changes)</i>"] 
+    -->|"git add ."| ZONE2["<b>2. Staging Area (The Shopping Cart)</b><br/>Selected files ready to be saved"]
+    ZONE2 -->|"git commit -m '...' "| ZONE3["<b>3. Local Repository (.git)</b><br/>Permanent checkpoint in history!"]
+```
+
+1. **Working Directory:** The actual files on your computer you are currently typing in.
+2. **Staging Area (The Shopping Cart):** You selectively choose *which* files you want to include in your next save checkpoint using **`git add`**.
+3. **Local Repository:** The permanent history ledger saved on your machine using **`git commit`**.
+
+---
+
+### 3. Step-by-Step Git Commands
+
+#### First-Time Git Configuration (Do this once):
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+#### The Daily Git Cycle:
+```bash
+# 1. Initialize Git in your project folder (only once per project):
 git init
 
-# 2. Check the status of the four areas
+# 2. Check the status of your files (Are changes staged?):
 git status
 
-# 3. Stage changes (Move files from Working Directory to Staging Area)
-git add README.md       # Stage a specific file
-git add .               # Stage all modified and new files in current directory
+# 3. Add files to the staging cart:
+git add README.md       # Adds a single file
+git add .               # Adds ALL modified files in current folder
 
-# 4. Commit (Save the staged snapshot into the Local Repository)
-git commit -m "chore: initialize lagos-spots project structure"
+# 4. Save a permanent checkpoint with a descriptive message:
+git commit -m "feat: initialize Lagos Spots project structure"
 
-# 5. View history
-git log --oneline --graph
+# 5. View your project history:
+git log --oneline
 ```
-
-#### Commit Message Best Practices (Conventional Commits):
-Write commit messages in the imperative mood with standardized prefixes:
-- `feat:` A new user-facing feature (`feat: add category filter buttons`).
-- `fix:` A bug fix (`fix: correct broken image link in spot card`).
-- `docs:` Documentation changes only (`docs: update README with API spec`).
-- `style:` Formatting/CSS tweaks with no logic change (`style: adjust card padding`).
-- `refactor:` Code restructuring without changing behavior (`refactor: extract helper function`).
-- `chore:` Maintenance, configs, build tools (`chore: add .gitignore file`).
 
 ---
 
-### 4. Connecting to GitHub & Synchronizing
+## Module 4: GitHub & Remote Repositories
+
+### 1. Git vs. GitHub
+
+- **Git:** The free tool installed on your computer that tracks file history. (Works 100% offline).
+- **GitHub:** A cloud website that hosts your Git repositories online so you can backup your code, collaborate with teammates, and deploy to the web.
+
+---
+
+### 2. Pushing Your Code to GitHub
+
+1. Go to [github.com](https://github.com) and click **"New Repository"**.
+2. Name it `lagos-spots` and leave it Public. Do not check "Add a README" (we already have our local repo).
+3. Connect your local project to GitHub and push:
 
 ```bash
-# 1. Rename default branch to 'main'
+# 1. Rename default branch to 'main':
 git branch -M main
 
-# 2. Add remote origin URL (Link local repo to GitHub)
+# 2. Connect local folder to GitHub remote URL:
 git remote add origin https://github.com/<your-username>/lagos-spots.git
 
-# 3. Verify remote configuration
-git remote -v
-
-# 4. Push local commits to remote repository (-u sets upstream tracking)
+# 3. Push code to GitHub (-u sets default upstream branch):
 git push -u origin main
 ```
 
-#### Understanding `.gitignore`:
-Never commit temporary files, credentials, or bulky dependencies to Git. A `.gitignore` file at the repository root tells Git to ignore matching patterns:
+Refresh your GitHub browser page — your files are now safely backed up in the cloud!
+
+---
+
+### 3. Protecting Secrets with `.gitignore`
+
+Never push private API keys, database passwords, or heavy system files to GitHub!
+Create a file named **`.gitignore`** in your project root:
+
 ```gitignore
-# Operating System files
+# Operating system files
 .DS_Store
 Thumbs.db
 
-# Dependencies (generated by package managers)
+# Dependencies
 node_modules/
 
-# Environment variables & secrets
+# Secrets and environment variables
 .env
 .env.local
-
-# Build output
-dist/
-build/
 ```
-> [!IMPORTANT]
-> Files must be ignored **before** they are staged. If you previously committed a file and later add it to `.gitignore`, Git will continue tracking it. You must un-track it using: `git rm --cached <filename>`.
 
 ---
 
-### 5. Branching, Merging & Pull Requests
+## Module 5: Professional Branching & Pull Requests
 
-A **branch** in Git is simply a lightweight, movable pointer to a commit. Creating a branch costs virtually zero memory and allows isolated feature development.
+### 1. Why Branches?
+
+In professional engineering teams, **developers NEVER write code directly on the `main` branch**.
+If two engineers edit `main` at the same time, they break each other's work.
+
+Instead, you create a **Branch** (an isolated workspace copy). You build and test your feature on your branch, and when it is finished, you merge it back into `main` via a **Pull Request (PR)**.
 
 ```mermaid
 gitGraph
-    commit id: "chore: init repo"
-    commit id: "feat: add basic html"
-    branch feature/add-readme-features
-    checkout feature/add-readme-features
-    commit id: "docs: outline search and filter specs"
-    commit id: "docs: add contributor guidelines"
+    commit id: "init repo"
+    branch feature/header
+    checkout feature/header
+    commit id: "add navbar"
+    commit id: "style header"
     checkout main
-    merge feature/add-readme-features id: "Merge PR #1 from feature/add-readme-features"
-    commit id: "feat: add css reset"
+    merge feature/header id: "merge PR into main"
 ```
 
-#### Step-by-Step Feature Branch Workflow:
-1. **Create and switch to a feature branch:**
+---
+
+### 2. The Feature Branch Workflow
+
+```bash
+# 1. Create and switch to a new feature branch:
+git checkout -b feature/header
+# (Or modern syntax: git switch -c feature/header)
+
+# 2. Make your code changes in VS Code...
+
+# 3. Stage and commit on your branch:
+git add .
+git commit -m "feat: add initial header and navbar structure"
+
+# 4. Push your branch to GitHub:
+git push -u origin feature/header
+```
+
+5. Go to your repository on GitHub: click **"Compare & pull request"**.
+6. Review your changes and click **"Merge pull request"**!
+7. Switch back to `main` locally and pull the merged changes:
    ```bash
-   git switch -c feature/add-readme-features
-   # (Older equivalent: git checkout -b feature/add-readme-features)
-   ```
-2. **Make changes, stage, and commit:**
-   ```bash
-   git add README.md
-   git commit -m "docs: document planned features for Lagos Spots"
-   ```
-3. **Push the feature branch to GitHub:**
-   ```bash
-   git push -u origin feature/add-readme-features
-   ```
-4. **Open a Pull Request (PR) on GitHub:**
-   - A PR requests that the repository maintainer merge changes from `feature/add-readme-features` into `main`.
-   - Allows code review, discussion, automated CI checks, and diff inspection.
-5. **Merge PR on GitHub & Pull Locally:**
-   ```bash
-   # Switch back to main on your local machine
-   git switch main
-   
-   # Synchronize local main with the merged remote main
+   git checkout main
    git pull origin main
-   
-   # (Optional) Delete the local feature branch now that it is merged
-   git branch -d feature/add-readme-features
    ```
 
 ---
 
-### 6. Common Pitfalls & How to Avoid Them
+## Module 6: Rookie Traps & Debugging Guide
 
-1. **`git commit` without `git add`:**
-   - *Problem:* Running `git commit -m "..."` outputs "no changes added to commit".
-   - *Reason:* Git requires explicit staging. You must run `git add <files>` first so Git knows what to include in the snapshot.
-2. **Working directly on `main` branch:**
-   - *Problem:* Committing experimental or broken code directly to `main` makes collaboration risky.
-   - *Best Practice:* Always create a feature branch (`feature/<name>`) for any non-trivial change.
-3. **Accidental Merge Conflicts:**
-   - *Why they happen:* When two branches modify the **exact same line** of a file differently, Git cannot automatically guess which version is correct.
-   - *Resolution:* Git marks the file with conflict markers (`<<<<<<< HEAD`, `=======`, `>>>>>>>`). You manually choose the correct code in VS Code, stage the file (`git add`), and run `git commit`.
+| Error Message / Trap | Root Cause | How to Fix It |
+| :--- | :--- | :--- |
+| `fatal: not a git repository` | You ran a `git` command in a folder that was never initialized. | Run `git init` or check your current folder with `pwd`. |
+| Trapped in a strange black terminal window (**Vim**) | Git opened the Vim text editor because you ran `git commit` without `-m "..."`. | Press `Esc`, type `:wq` and press `Enter` to save and exit! |
+| `fatal: remote origin already exists` | You tried running `git remote add origin` twice. | Check with `git remote -v`, or remove it with `git remote remove origin`. |
+| GitHub rejects your password during `git push` | GitHub no longer accepts account passwords for command line operations. | Use a **GitHub Personal Access Token (PAT)** or configure an **SSH Key**. |
 
 ---
 
-### Week 1: Comprehensive Assignment
+## 🎯 Week 1 Hands-on Classroom Exercises
 
-**Objective:** Scaffold the `lagos-spots` project, establish a professional Git workflow on GitHub, and verify low-level network communication in browser DevTools.
+### Level 1: Terminal Mastery
+1. Using only your terminal, create a directory called `web-drills`.
+2. Inside it, create two files: `index.html` and `README.md`.
+3. Open the directory in VS Code using `code .`.
 
-**Requirements:**
-1. **Environment:** VS Code installed with the `lagos-spots` directory opened as the root workspace.
-2. **Git Repository:** Initialized local Git repository with a `.gitignore` configured to ignore `.DS_Store` and temporary files.
-3. **Repository History:** Minimum of 3 clean, descriptive commits following conventional commit prefixes (`chore:`, `feat:`, `docs:`).
-4. **GitHub Remote & PR Workflow:**
-   - Project pushed to GitHub under your account.
-   - Created a feature branch `feature/readme-roadmap`.
-   - Added detailed specifications in `README.md` (description of Lagos Spots, target audience, list of categories: Food, Study, Nightlife, Events).
-   - Opened a Pull Request on GitHub, merged it into `main`, and ran `git pull` locally to synchronize.
-5. **DevTools Network Analysis:**
-   - Open DevTools on any live directory or news website.
-   - In your assignment submission notes, document:
-     - The **HTTP Method** and **Status Code** of the first request.
-     - The value of the `Content-Type` response header.
-     - The total transfer size (in KB) of all assets loaded on the initial page load.
+### Level 2: First Git Repository
+1. Initialize Git inside `web-drills`.
+2. In `README.md`, type: `"# Full-Stack Development Drills"`.
+3. Check `git status`, stage the file with `git add README.md`, and commit with `git commit -m "docs: add initial README"`.
+4. Inspect your commit history with `git log --oneline`.
+
+### Level 3: Initializing the Lagos Spots Project
+1. Create your official `lagos-spots` project repository on GitHub.
+2. Clone or initialize the repository on your local computer.
+3. Create a feature branch: `feature/readme-setup`.
+4. Write a descriptive `README.md` explaining what Lagos Spots is (a directory of food, study, and nightlife spots in Lagos).
+5. Push the branch, open a Pull Request on GitHub, and merge it into `main`!
 
 ---
 
-## Recommended References & Deep-Dive Resources
+## 📚 Curated Deep-Dive References
 
-### Official Documentation & Standards
-- [MDN Web Docs: How the Web Works](https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/How_the_Web_works) — Comprehensive guide on network requests, DNS lookups, and web asset parsing.
-- [Git SCM Official Documentation & Pro Git Book](https://git-scm.com/doc) — The definitive, free open-source manual on Git commands and distributed object graph internals.
-- [GitHub Documentation: GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow) — Official guide to branching, pull requests, and code review workflows.
-- [RFC 9110: HTTP Semantics](https://datatracker.ietf.org/doc/html/rfc9110) — The official IETF internet standard specification for HTTP methods, headers, and status codes.
-
-### Recommended Textbooks & Canonical Books
-- **Pro Git (2nd Edition)** by Scott Chacon and Ben Straub (Apress) — *Chapters 1–3: Git Basics, Branching, and Distributed Workflows.* (Available free online at `git-scm.com/book`).
-- **High Performance Browser Networking** by Ilya Grigorik (O'Reilly) — *Chapters 1–4: Primer on Latency, TCP 3-Way Handshake, UDP, and TLS Encryption.*
-- **Computer Networking: A Top-Down Approach (8th Edition)** by James Kurose and Keith Ross (Pearson) — *Chapter 2: Application Layer (DNS, HTTP/HTTPS architectures).*
-
-### Interactive Tools & Visual Learning
-- [LearnGitBranching.js.org](https://learngitbranching.js.org/) — Interactive sandbox visualizer for mastering commits, branches, rebasing, and merges.
-- [Visualizing Git Concepts](https://git-school.github.io/visualizing-git/) — Real-time animated graph rendering of Git DAG nodes during staging and commits.
+* [The Valley of Code: Git Tutorial](https://thevalleyofcode.com/git/) — Flavio Copes' gentle, beginner-focused guide to Git.
+* [The Valley of Code: The Command Line](https://thevalleyofcode.com/command-line/) — Essential CLI commands and tips.
+* [GitHub Skills: Introduction to GitHub](https://skills.github.com/) — Free, interactive GitHub tutorials.
+* [MDN Web Docs: How the Web Works](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/How_does_the_Internet_work) — Comprehensive overview of internet architecture.
